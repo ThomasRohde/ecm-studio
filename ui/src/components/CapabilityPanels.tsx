@@ -1,31 +1,33 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
+import {
+  dragAndDropFeature,
+  hotkeysCoreFeature,
+  isOrderedDragTarget,
+  syncDataLoaderFeature,
+} from '@headless-tree/core';
+import type { ItemInstance } from '@headless-tree/core';
+import { useTree } from '@headless-tree/react';
 import { Button, Input, Text, Textarea, Dropdown, Option } from '@fluentui/react-components';
+import { ChevronDownRegular, ChevronRightRegular, DragRegular } from '@fluentui/react-icons';
 import type { Capability, CapabilityPatch } from '../api/types';
 import { api } from '../api/bridge';
 import { useAppStore } from '../store/app-store';
-
-function flatten(nodes: Capability[]): Capability[] {
-  return nodes.flatMap((node) => [node, ...flatten(node.children ?? [])]);
-}
-
-function TreeNode({ node, depth }: { node: Capability; depth: number }) {
-  const selectedId = useAppStore((s) => s.selectedId);
-  const setSelected = useAppStore((s) => s.setSelected);
-  return (
-    <div>
-      <button
-        className={`tree-row ${selectedId === node.id ? 'selected' : ''}`}
-        style={{ paddingLeft: 12 + depth * 16 }}
-        onClick={() => setSelected(node)}
-      >
-        <span className="tree-name">{node.name}</span>
-      </button>
-      {(node.children ?? []).map((child) => (
-        <TreeNode key={child.id} node={child} depth={depth + 1} />
-      ))}
-    </div>
-  );
-}
+import {
+  CAPABILITY_TREE_ROOT_ID,
+  CAPABILITY_TREE_REORDER_AREA,
+  ROOT_PARENT_OPTION_ID,
+  buildCapabilityTreeItems,
+  flattenCapabilities,
+  fullyExpandedCapabilityItems,
+  getCapabilityDropMoveRequest,
+  getValidParentCandidates,
+  parentIdFromOptionValue,
+  parentOptionLabel,
+  parentOptionValue,
+  reconcileExpandedCapabilityItems,
+} from './capability-tree-utils';
+import type { CapabilityMoveRequest, CapabilityTreeItemData } from './capability-tree-utils';
 
 function capabilityPatch(draft: Capability): CapabilityPatch {
   return {
@@ -44,24 +46,48 @@ function capabilityPatch(draft: Capability): CapabilityPatch {
   };
 }
 
+function capabilityPatchChanged(draft: Capability, original: Capability | null): boolean {
+  return !original || JSON.stringify(capabilityPatch(draft)) !== JSON.stringify(capabilityPatch(original));
+}
+
 export function CapabilityTreePanel() {
   const workspace = useAppStore((s) => s.workspace);
   const tree = useAppStore((s) => s.tree);
   const selected = useAppStore((s) => s.selected);
+  const selectedId = useAppStore((s) => s.selectedId);
   const setTree = useAppStore((s) => s.setTree);
   const setSelected = useAppStore((s) => s.setSelected);
   const setError = useAppStore((s) => s.setError);
   const [query, setQuery] = useState('');
   const [newName, setNewName] = useState('');
   const [results, setResults] = useState<Capability[]>([]);
+  const [expandedItems, setExpandedItems] = useState<string[]>([CAPABILITY_TREE_ROOT_ID]);
+  const expansionInitializedFor = useRef<string | null>(null);
 
-  async function refresh() {
+  async function refresh(options: {
+    initializeExpansion?: boolean;
+    selectId?: string | null;
+    extraExpandedItems?: string[];
+  } = {}) {
     try {
       const next = await api.capabilities.listTree();
       setTree(next);
-      if (selected) {
-        const match = flatten(next).find((cap) => cap.id === selected.id) ?? null;
+      const desiredSelectedId = options.selectId ?? selected?.id ?? null;
+      if (desiredSelectedId) {
+        const match = flattenCapabilities(next).find((cap) => cap.id === desiredSelectedId) ?? null;
         setSelected(match);
+      }
+      if (
+        options.initializeExpansion &&
+        workspace?.path &&
+        expansionInitializedFor.current !== workspace.path
+      ) {
+        expansionInitializedFor.current = workspace.path;
+        setExpandedItems(fullyExpandedCapabilityItems(next));
+      } else {
+        setExpandedItems((current) => (
+          reconcileExpandedCapabilityItems(current, next, options.extraExpandedItems)
+        ));
       }
     } catch (error) {
       setError(String(error));
@@ -69,7 +95,9 @@ export function CapabilityTreePanel() {
   }
 
   useEffect(() => {
-    if (workspace) void refresh();
+    expansionInitializedFor.current = null;
+    setExpandedItems([CAPABILITY_TREE_ROOT_ID]);
+    if (workspace) void refresh({ initializeExpansion: true });
   }, [workspace?.path]);
 
   async function create(parentId: string | null) {
@@ -77,8 +105,23 @@ export function CapabilityTreePanel() {
     try {
       const created = await api.capabilities.create({ name: newName.trim(), parent_id: parentId });
       setNewName('');
-      await refresh();
-      setSelected(created);
+      await refresh({
+        selectId: created.id,
+        extraExpandedItems: [parentId ?? CAPABILITY_TREE_ROOT_ID],
+      });
+    } catch (error) {
+      setError(String(error));
+    }
+  }
+
+  async function moveFromTree(request: CapabilityMoveRequest) {
+    try {
+      const updated = await api.capabilities.move(request.id, request.parentId, request.order);
+      await refresh({
+        selectId: updated.id,
+        extraExpandedItems: [request.parentId ?? CAPABILITY_TREE_ROOT_ID],
+      });
+      setError(null);
     } catch (error) {
       setError(String(error));
     }
@@ -93,19 +136,19 @@ export function CapabilityTreePanel() {
     try {
       const found = await api.search.query(value);
       const ids = new Set(found.map((item) => item.id));
-      setResults(flatten(tree).filter((item) => ids.has(item.id)));
+      setResults(flattenCapabilities(tree).filter((item) => ids.has(item.id)));
     } catch (error) {
       setError(String(error));
     }
   }
 
-  const flat = useMemo(() => flatten(tree), [tree]);
+  const flat = useMemo(() => flattenCapabilities(tree), [tree]);
 
   return (
     <section className="panel stack capability-tree-panel">
       <div className="toolbar">
         <Input value={query} onChange={(_, data) => void runSearch(data.value)} placeholder="Search capabilities" />
-        <Button onClick={refresh}>Refresh</Button>
+        <Button onClick={() => void refresh()}>Refresh</Button>
       </div>
       <div className="toolbar">
         <Input value={newName} onChange={(_, data) => setNewName(data.value)} placeholder="New capability name" />
@@ -122,12 +165,144 @@ export function CapabilityTreePanel() {
           ))}
         </div>
       ) : (
-        <div className="tree capability-tree-scroll">
-          {tree.map((node) => <TreeNode key={node.id} node={node} depth={0} />)}
-        </div>
+        <CapabilityTreeView
+          nodes={tree}
+          selectedId={selectedId}
+          expandedItems={expandedItems}
+          setExpandedItems={setExpandedItems}
+          onSelect={setSelected}
+          onMove={moveFromTree}
+        />
       )}
       <Text size={200}>{flat.length} capabilities</Text>
     </section>
+  );
+}
+
+function CapabilityTreeView({
+  nodes,
+  selectedId,
+  expandedItems,
+  setExpandedItems,
+  onSelect,
+  onMove,
+}: {
+  nodes: Capability[];
+  selectedId: string | null;
+  expandedItems: string[];
+  setExpandedItems: Dispatch<SetStateAction<string[]>>;
+  onSelect: (capability: Capability | null) => void;
+  onMove: (request: CapabilityMoveRequest) => Promise<void>;
+}) {
+  const itemsById = useMemo(() => buildCapabilityTreeItems(nodes), [nodes]);
+  const capabilityTree = useTree<CapabilityTreeItemData>({
+    rootItemId: CAPABILITY_TREE_ROOT_ID,
+    indent: 20,
+    canReorder: true,
+    reorderAreaPercentage: CAPABILITY_TREE_REORDER_AREA,
+    openOnDropDelay: 500,
+    seperateDragHandle: true,
+    state: { expandedItems },
+    setExpandedItems,
+    dataLoader: {
+      getItem: (itemId) => itemsById[itemId] ?? {
+        id: itemId,
+        name: 'Missing capability',
+        capability: null,
+        childrenIds: [],
+      },
+      getChildren: (itemId) => itemsById[itemId]?.childrenIds ?? [],
+    },
+    getItemName: (item) => item.getItemData().name,
+    isItemFolder: (item) => item.getId() === CAPABILITY_TREE_ROOT_ID || item.getItemData().capability !== null,
+    canDrag: (items) => items.length === 1 && items[0].getId() !== CAPABILITY_TREE_ROOT_ID,
+    canDrop: (items, target) => (
+      getCapabilityDropMoveRequest(
+        items.map((item) => item.getId()),
+        target,
+        isOrderedDragTarget(target),
+      ) !== null
+    ),
+    onDrop: async (items, target) => {
+      const request = getCapabilityDropMoveRequest(
+        items.map((item) => item.getId()),
+        target,
+        isOrderedDragTarget(target),
+      );
+      if (request) await onMove(request);
+    },
+    onPrimaryAction: (item) => onSelect(item.getItemData().capability),
+    features: [syncDataLoaderFeature, hotkeysCoreFeature, dragAndDropFeature],
+  });
+
+  useEffect(() => {
+    capabilityTree.rebuildTree();
+  }, [capabilityTree, itemsById]);
+
+  return (
+    <div {...capabilityTree.getContainerProps('Capability tree')} className="tree capability-tree-scroll">
+      {capabilityTree.getItems().map((item) => (
+        <CapabilityTreeRow key={item.getKey()} item={item} selectedId={selectedId} />
+      ))}
+      <div style={capabilityTree.getDragLineStyle()} className="tree-drag-line" />
+    </div>
+  );
+}
+
+function CapabilityTreeRow({
+  item,
+  selectedId,
+}: {
+  item: ItemInstance<CapabilityTreeItemData>;
+  selectedId: string | null;
+}) {
+  const data = item.getItemData();
+  const hasChildren = data.childrenIds.length > 0;
+  const expanded = item.isExpanded();
+  const rowProps = item.getProps();
+  const dragHandleProps = item.getDragHandleProps();
+  const classes = [
+    'tree-row',
+    'headless-tree-row',
+    selectedId === item.getId() ? 'selected' : '',
+    item.isFocused() ? 'focused' : '',
+    item.isDraggingOver() ? 'drag-over' : '',
+    item.isUnorderedDragTarget() ? 'drop-inside' : '',
+    item.isDragTargetAbove() ? 'drop-before' : '',
+    item.isDragTargetBelow() ? 'drop-after' : '',
+  ].filter(Boolean).join(' ');
+
+  return (
+    <div
+      {...rowProps}
+      className={classes}
+      style={{ paddingLeft: 8 + item.getItemMeta().level * 20 }}
+    >
+      <button
+        className={`tree-toggle ${hasChildren ? '' : 'empty'}`}
+        type="button"
+        aria-label={expanded ? `Collapse ${data.name}` : `Expand ${data.name}`}
+        disabled={!hasChildren}
+        onClick={(event) => {
+          event.stopPropagation();
+          if (!hasChildren) return;
+          if (expanded) item.collapse();
+          else item.expand();
+        }}
+      >
+        {hasChildren ? (expanded ? <ChevronDownRegular /> : <ChevronRightRegular />) : null}
+      </button>
+      <span
+        {...dragHandleProps}
+        className="tree-drag-handle"
+        title={`Move ${data.name}`}
+        aria-label={`Move ${data.name}`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <DragRegular />
+      </span>
+      <span className="tree-name">{data.name}</span>
+    </div>
   );
 }
 
@@ -144,27 +319,24 @@ export function InspectorPanel() {
   async function save() {
     if (!draft) return;
     try {
-      const updated = await api.capabilities.update(draft.id, capabilityPatch(draft));
-      setSelected(updated);
-      setTree(await api.capabilities.listTree());
+      const metadataChanged = capabilityPatchChanged(draft, selected);
+      const parentChanged = draft.parent_id !== (selected?.parent_id ?? null);
+      const updated = metadataChanged
+        ? await api.capabilities.update(draft.id, capabilityPatch(draft))
+        : (selected ?? draft);
+      const final = parentChanged
+        ? await api.capabilities.move(draft.id, draft.parent_id)
+        : updated;
+      const nextTree = await api.capabilities.listTree();
+      setTree(nextTree);
+      setSelected(flattenCapabilities(nextTree).find((capability) => capability.id === final.id) ?? final);
       setError(null);
     } catch (error) {
       setError(String(error));
     }
   }
 
-  async function move(parentId: string | null) {
-    if (!draft) return;
-    try {
-      const updated = await api.capabilities.move(draft.id, parentId);
-      setSelected(updated);
-      setTree(await api.capabilities.listTree());
-    } catch (error) {
-      setError(String(error));
-    }
-  }
-
-  const candidates = flatten(tree).filter((cap) => cap.id !== draft?.id);
+  const candidates = getValidParentCandidates(tree, draft);
 
   if (!draft) return <section className="panel"><Text>Select a capability.</Text></section>;
 
@@ -187,8 +359,15 @@ export function InspectorPanel() {
       <label>Steward<Input value={draft.steward_id} onChange={(_, d) => setDraft({ ...draft, steward_id: d.value })} /></label>
       <label>Steward Department<Input value={draft.steward_department} onChange={(_, d) => setDraft({ ...draft, steward_department: d.value })} /></label>
       <label>Move under
-        <Dropdown placeholder="Root" onOptionSelect={(_, d) => void move(d.optionValue || null)}>
-          <Option value="">Root</Option>
+        <Dropdown
+          selectedOptions={[parentOptionValue(draft.parent_id)]}
+          value={parentOptionLabel(draft.parent_id, candidates)}
+          onOptionSelect={(_, d) => setDraft({
+            ...draft,
+            parent_id: parentIdFromOptionValue(d.optionValue),
+          })}
+        >
+          <Option value={ROOT_PARENT_OPTION_ID}>Top level</Option>
           {candidates.map((candidate) => <Option key={candidate.id} value={candidate.id}>{candidate.name}</Option>)}
         </Dropdown>
       </label>

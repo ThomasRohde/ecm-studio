@@ -87,3 +87,42 @@ def test_capability_type_is_computed_from_hierarchy(tmp_path: Path) -> None:
         "Root": "leaf",
         "Child": "leaf",
     }
+
+
+def test_move_persists_order_sqlite_and_audit(tmp_path: Path) -> None:
+    services = AppServices(settings_path=tmp_path / "settings.json")
+    services.workspace.init(str(tmp_path), "Move Pipeline")
+
+    root = services.capabilities.create({"name": "Root"})
+    services.capabilities.create({"name": "Capability A", "parent_id": root["id"]})
+    services.capabilities.create({"name": "Capability B", "parent_id": root["id"]})
+    moved = services.capabilities.create({"name": "Capability C", "parent_id": root["id"]})
+
+    updated = services.capabilities.move(moved["id"], root["id"], 0)
+
+    assert updated["parent_id"] == root["id"]
+    assert updated["order"] == 0
+    tree = services.capabilities.list_tree()
+    assert [child["name"] for child in tree[0]["children"]] == [
+        "Capability C",
+        "Capability A",
+        "Capability B",
+    ]
+
+    records = read_raw_jsonl(tmp_path / "ecm" / "capabilities.jsonl").records
+    assert [
+        (record["name"], record["order"])
+        for record in records
+        if record.get("parent_id") == root["id"]
+    ] == [
+        ("Capability C", 0),
+        ("Capability A", 1),
+        ("Capability B", 2),
+    ]
+    assert services.search.query("Capability C")[0]["name"] == "Capability C"
+
+    events = read_raw_jsonl(tmp_path / "ecm" / "capability_versions.jsonl").records
+    move_events = [event for event in events if event.get("action") == "move"]
+    assert move_events
+    assert move_events[-1]["capability_id"] == moved["id"]
+    assert move_events[-1]["patch"] == {"parent_id": root["id"], "order": 0}

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ctypes
 import logging
+import sys
 import tempfile
 from pathlib import Path
 
@@ -28,6 +30,25 @@ def _ui_index() -> Path:
     return _fallback_page()
 
 
+def _app_icon() -> Path | None:
+    packaged = Path(__file__).resolve().parents[1] / "assets" / "ecm-studio.ico"
+    if packaged.exists():
+        return packaged
+    source = _project_root() / "packaging" / "assets" / "ecm-studio.ico"
+    if source.exists():
+        return source
+    return None
+
+
+def _set_windows_app_id() -> None:
+    if sys.platform != "win32":
+        return
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("ecm-studio.ecm-studio")
+    except Exception:
+        return
+
+
 def _fallback_page() -> Path:
     html = """
 <!doctype html>
@@ -44,6 +65,7 @@ def _fallback_page() -> Path:
 
 
 def run(workspace: Path | None = None, dev_ui: str | None = None) -> int:
+    _set_windows_app_id()
     services = AppServices()
     api = BridgeApi(services)
     if workspace is not None:
@@ -66,5 +88,6 @@ def run(workspace: Path | None = None, dev_ui: str | None = None) -> int:
         api.settings_get()
 
     window.events.loaded += _apply_initial_theme
-    webview.start()
+    icon = _app_icon()
+    webview.start(icon=str(icon) if icon is not None else None)
     return 0

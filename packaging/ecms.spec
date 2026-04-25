@@ -9,7 +9,10 @@ a = Analysis(
     [str(root / "src" / "ecm_studio" / "cli.py")],
     pathex=[str(root / "src")],
     binaries=[],
-    datas=[(str(root / "ui" / "dist"), "ecm_studio/assets/ui")],
+    datas=[
+        (str(root / "ui" / "dist"), "ecm_studio/assets/ui"),
+        (str(root / "packaging" / "assets" / "ecm-studio.ico"), "ecm_studio/assets"),
+    ],
     hiddenimports=["webview.platforms.edgechromium"],
     hookspath=[],
     hooksconfig={},
@@ -32,6 +35,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
+    icon=str(root / "packaging" / "assets" / "ecm-studio.ico"),
 )
 coll = COLLECT(
     exe,

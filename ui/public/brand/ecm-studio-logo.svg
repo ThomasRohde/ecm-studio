@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="256" viewBox="0 0 512 256" role="img" aria-labelledby="title desc">
+  <title id="title">ECM Studio logo</title>
+  <desc id="desc">A teal and blue tag-shaped ECM Studio logo mark based on option 17.</desc>
+  <defs>
+    <linearGradient id="tag-fill" x1="72" y1="72" x2="444" y2="184" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1d78c2"/>
+      <stop offset="0.48" stop-color="#0e9f92"/>
+      <stop offset="1" stop-color="#145a72"/>
+    </linearGradient>
+    <filter id="soft-depth" x="0" y="0" width="512" height="256" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="7" stdDeviation="8" flood-color="#031018" flood-opacity="0.18"/>
+    </filter>
+    <mask id="tag-cutout">
+      <rect width="512" height="256" fill="#000"/>
+      <path d="M156 60H403C431 60 452 82 452 110V146C452 174 431 196 403 196H156L54 128Z" fill="#fff"/>
+      <circle cx="132" cy="128" r="15" fill="#000"/>
+    </mask>
+  </defs>
+  <g filter="url(#soft-depth)">
+    <path d="M156 60H403C431 60 452 82 452 110V146C452 174 431 196 403 196H156L54 128Z" fill="none" stroke="#effdfa" stroke-width="10" stroke-linejoin="round"/>
+    <path d="M156 60H403C431 60 452 82 452 110V146C452 174 431 196 403 196H156L54 128Z" fill="url(#tag-fill)" mask="url(#tag-cutout)"/>
+    <path d="M156 60H403C431 60 452 82 452 110V146C452 174 431 196 403 196H156L54 128Z" fill="none" stroke="#0f3f56" stroke-opacity="0.42" stroke-width="3" stroke-linejoin="round"/>
+    <circle cx="132" cy="128" r="15" fill="none" stroke="#dff8f4" stroke-width="6"/>
+    <text x="198" y="151" fill="#f8fffd" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="66" font-weight="700" letter-spacing="0" paint-order="stroke" stroke="#0b2330" stroke-opacity="0.24" stroke-width="3">ECM</text>
+  </g>
+</svg>

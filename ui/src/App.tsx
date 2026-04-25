@@ -37,6 +37,7 @@ export function App() {
             <strong>ECM Studio</strong>
             <span>Desktop Git/JSONL capability management</span>
           </div>
+          <img alt="" aria-hidden="true" className="app-logo" src="./brand/ecm-studio-logo.svg" />
         </header>
         <section className="studio-area"><StudioLayout /></section>
         <StatusBar />

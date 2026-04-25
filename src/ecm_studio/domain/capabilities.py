@@ -101,22 +101,73 @@ def move_capability(
     capability_id: str,
     new_parent_id: str | None,
     order: int | None = None,
-) -> Capability:
+) -> tuple[list[Capability], Capability]:
     capability = get_capability(capabilities, capability_id)
     assert_parent_exists(capabilities, new_parent_id)
     if new_parent_id == capability_id:
         raise CycleDetected()
     if new_parent_id is not None and is_descendant(capabilities, new_parent_id, capability_id):
         raise CycleDetected()
-    if order is None:
-        order = next_order(capabilities, new_parent_id)
-    return capability.model_copy(
-        update={"parent_id": new_parent_id, "order": max(0, order), "updated_at": now_iso()}
+    current_parent_id = capability.parent_id
+    destination_siblings = _ordered_siblings(
+        capabilities, new_parent_id, exclude_id=capability_id
     )
+    destination_index = (
+        len(destination_siblings)
+        if order is None
+        else min(max(0, order), len(destination_siblings))
+    )
+    moved = capability.model_copy(
+        update={
+            "parent_id": new_parent_id,
+            "order": destination_index,
+            "updated_at": now_iso(),
+        }
+    )
+
+    replacements: dict[str, Capability] = {}
+    if current_parent_id != new_parent_id:
+        for sibling in _normalize_sibling_order(
+            _ordered_siblings(capabilities, current_parent_id, exclude_id=capability_id)
+        ):
+            replacements[sibling.id] = sibling
+
+    destination_with_moved = destination_siblings.copy()
+    destination_with_moved.insert(destination_index, moved)
+    for sibling in _normalize_sibling_order(destination_with_moved):
+        replacements[sibling.id] = sibling
+
+    moved = replacements[capability_id]
+    return [replacements.get(item.id, item) for item in capabilities], moved
 
 
 def replace_capability(capabilities: list[Capability], updated: Capability) -> list[Capability]:
     return [updated if capability.id == updated.id else capability for capability in capabilities]
+
+
+def _ordered_siblings(
+    capabilities: Iterable[Capability],
+    parent_id: str | None,
+    exclude_id: str | None = None,
+) -> list[Capability]:
+    return sorted(
+        [
+            capability
+            for capability in capabilities
+            if capability.parent_id == parent_id and capability.id != exclude_id
+        ],
+        key=lambda c: (c.order, normalize_name(c.name), c.id),
+    )
+
+
+def _normalize_sibling_order(siblings: Iterable[Capability]) -> list[Capability]:
+    result: list[Capability] = []
+    for index, capability in enumerate(siblings):
+        if capability.order == index:
+            result.append(capability)
+        else:
+            result.append(capability.model_copy(update={"order": index}))
+    return result
 
 
 def sort_capabilities_depth_first(capabilities: Iterable[Capability]) -> list[Capability]:

@@ -186,8 +186,7 @@ class CapabilityService:
     ) -> dict[str, Any]:
         capabilities = self._load()
         before = get_capability(capabilities, capability_id)
-        moved = move_capability(capabilities, capability_id, new_parent_id, order)
-        capabilities = replace_capability(capabilities, moved)
+        capabilities, moved = move_capability(capabilities, capability_id, new_parent_id, order)
         capabilities = with_computed_types(capabilities)
         moved = get_capability(capabilities, moved.id)
         self._save_and_rebuild(

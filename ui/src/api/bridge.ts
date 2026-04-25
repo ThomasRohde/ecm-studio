@@ -120,7 +120,7 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
       domain: input.domain || '',
       type: 'leaf',
       parent_id: input.parent_id || null,
-      order: mockState.capabilities.length,
+      order: nextMockOrder(input.parent_id || null),
       lifecycle_status: input.lifecycle_status || 'Draft',
       effective_from: null,
       effective_to: null,
@@ -180,7 +180,7 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
   if (method === 'capabilities_move') {
     const existing = mockState.capabilities.find((c) => c.id === args[0]);
     if (!existing) throw new Error('VALIDATION_FAILED: Capability not found.');
-    existing.parent_id = (args[1] as string | null) ?? null;
+    moveMockCapability(existing.id, (args[1] as string | null) ?? null, args[2] as number | undefined);
     applyComputedCapabilityTypes();
     return existing as T;
   }
@@ -249,11 +249,53 @@ function buildTree(flat: Capability[]): Capability[] {
   applyComputedCapabilityTypes();
   const byId = new Map(flat.map((cap) => [cap.id, { ...cap, children: [] as Capability[] }]));
   const roots: Capability[] = [];
-  for (const cap of byId.values()) {
+  for (const cap of [...byId.values()].sort(compareCapabilities)) {
     if (cap.parent_id && byId.has(cap.parent_id)) byId.get(cap.parent_id)!.children!.push(cap);
     else roots.push(cap);
   }
   return roots;
+}
+
+function nextMockOrder(parentId: string | null): number {
+  const orders = mockState.capabilities
+    .filter((cap) => cap.parent_id === parentId)
+    .map((cap) => cap.order);
+  return Math.max(-1, ...orders) + 1;
+}
+
+function moveMockCapability(id: string, parentId: string | null, order?: number) {
+  const existing = mockState.capabilities.find((cap) => cap.id === id);
+  if (!existing) return;
+  const previousParentId = existing.parent_id;
+  const destinationSiblings = orderedMockSiblings(parentId, id);
+  const destinationIndex = order === undefined
+    ? destinationSiblings.length
+    : Math.min(Math.max(0, order), destinationSiblings.length);
+  existing.parent_id = parentId;
+  existing.order = destinationIndex;
+  existing.updated_at = new Date().toISOString();
+
+  if (previousParentId !== parentId) {
+    normalizeMockSiblings(orderedMockSiblings(previousParentId, id));
+  }
+  destinationSiblings.splice(destinationIndex, 0, existing);
+  normalizeMockSiblings(destinationSiblings);
+}
+
+function orderedMockSiblings(parentId: string | null, excludeId?: string): Capability[] {
+  return mockState.capabilities
+    .filter((cap) => cap.parent_id === parentId && cap.id !== excludeId)
+    .sort(compareCapabilities);
+}
+
+function normalizeMockSiblings(siblings: Capability[]) {
+  siblings.forEach((capability, index) => {
+    capability.order = index;
+  });
+}
+
+function compareCapabilities(a: Capability, b: Capability): number {
+  return a.order - b.order || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
 }
 
 function applyComputedCapabilityTypes() {

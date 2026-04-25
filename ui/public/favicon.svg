@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="ECM Studio">
+  <defs>
+    <linearGradient id="tag-fill" x1="7" y1="20" x2="58" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1d78c2"/>
+      <stop offset="0.5" stop-color="#0e9f92"/>
+      <stop offset="1" stop-color="#145a72"/>
+    </linearGradient>
+    <mask id="tag-cutout">
+      <rect width="64" height="64" fill="#000"/>
+      <path d="M21 18H50C54 18 57 21 57 25V39C57 43 54 46 50 46H21L6 32Z" fill="#fff"/>
+      <circle cx="17" cy="32" r="3" fill="#000"/>
+    </mask>
+  </defs>
+  <path d="M21 18H50C54 18 57 21 57 25V39C57 43 54 46 50 46H21L6 32Z" fill="none" stroke="#effdfa" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M21 18H50C54 18 57 21 57 25V39C57 43 54 46 50 46H21L6 32Z" fill="url(#tag-fill)" mask="url(#tag-cutout)"/>
+  <path d="M21 18H50C54 18 57 21 57 25V39C57 43 54 46 50 46H21L6 32Z" fill="none" stroke="#0f3f56" stroke-opacity="0.45" stroke-width="1.2" stroke-linejoin="round"/>
+  <circle cx="17" cy="32" r="3" fill="none" stroke="#dff8f4" stroke-width="1.5"/>
+  <text x="25" y="38" fill="#f8fffd" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="0" paint-order="stroke" stroke="#0b2330" stroke-opacity="0.25" stroke-width="0.7">ECM</text>
+</svg>
