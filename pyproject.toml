@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ecm-workbench"
+dynamic = ["version"]
+description = "Desktop-first Enterprise Capability Model workbench with Git-managed JSONL storage."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "MIT"
+authors = [{ name = "Thomas Klok Rohde" }]
+keywords = ["enterprise-architecture", "capability-model", "desktop", "git", "jsonl", "sqlite"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "pywebview>=5.4",
+    "pydantic>=2.10",
+    "platformdirs>=4.3",
+    "watchfiles>=1.0",
+    'pywin32>=308; sys_platform == "win32"',
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+    "pyinstaller>=6.11",
+]
+
+[project.gui-scripts]
+ecmw = "ecm_workbench.cli:main"
+
+[tool.hatch.version]
+path = "src/ecm_workbench/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ecm_workbench"]
+artifacts = ["src/ecm_workbench/assets/**"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
