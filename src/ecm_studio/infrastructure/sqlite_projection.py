@@ -8,8 +8,8 @@ from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
-from ecm_workbench.domain.capabilities import capability_path
-from ecm_workbench.domain.models import Capability
+from ecm_studio.domain.capabilities import capability_path
+from ecm_studio.domain.models import Capability
 
 from .repository import CapabilityRepository
 from .workspace import WorkspaceRepository
@@ -43,7 +43,7 @@ class SQLiteProjection:
         repo = CapabilityRepository(self.workspace.paths.capabilities_file)
         capabilities, errors = repo.load()
         if errors:
-            from ecm_workbench.domain.errors import JsonlParseFailed
+            from ecm_studio.domain.errors import JsonlParseFailed
 
             raise JsonlParseFailed(errors)
         source_hash = self._hash_file(self.workspace.paths.capabilities_file)

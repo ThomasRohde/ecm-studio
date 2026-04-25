@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import pytest
 
-from ecm_workbench.domain.capabilities import (
+from ecm_studio.domain.capabilities import (
     build_tree,
     create_capability,
     move_capability,
     replace_capability,
     update_capability,
 )
-from ecm_workbench.domain.errors import CycleDetected, DuplicateName
-from ecm_workbench.domain.models import CapabilityCreate, CapabilityPatch
+from ecm_studio.domain.errors import CycleDetected, DuplicateName
+from ecm_studio.domain.models import CapabilityCreate, CapabilityPatch
 
 
 def test_create_update_and_tree() -> None:

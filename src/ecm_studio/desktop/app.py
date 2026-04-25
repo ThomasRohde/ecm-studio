@@ -6,7 +6,7 @@ from pathlib import Path
 
 import webview
 
-from ecm_workbench.application.services import AppServices
+from ecm_studio.application.services import AppServices
 
 from .bridge import BridgeApi
 
@@ -31,13 +31,13 @@ def _ui_index() -> Path:
 def _fallback_page() -> Path:
     html = """
 <!doctype html>
-<html><head><meta charset="utf-8"><title>ECM Workbench</title></head>
+<html><head><meta charset="utf-8"><title>ECM Studio</title></head>
 <body style="font-family:Segoe UI,sans-serif;margin:40px">
-<h1>ECM Workbench</h1>
+<h1>ECM Studio</h1>
 <p>UI assets are not built yet. Run <code>cd ui && npm install && npm run build</code>.</p>
 </body></html>
 """.strip()
-    directory = Path(tempfile.mkdtemp(prefix="ecmw-"))
+    directory = Path(tempfile.mkdtemp(prefix="ecms-"))
     index = directory / "index.html"
     index.write_text(html, encoding="utf-8")
     return index
@@ -52,7 +52,7 @@ def run(workspace: Path | None = None, dev_ui: str | None = None) -> int:
     settings = services.settings.get()
     background_color = "#101418" if settings["resolved_theme"] == "dark" else "#f6f4ef"
     window = webview.create_window(
-        title="ECM Workbench",
+        title="ECM Studio",
         url=url,
         js_api=api,
         width=1320,

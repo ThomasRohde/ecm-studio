@@ -8,8 +8,8 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from ecm_workbench.domain.errors import JsonlParseFailed
-from ecm_workbench.domain.models import Capability
+from ecm_studio.domain.errors import JsonlParseFailed
+from ecm_studio.domain.models import Capability
 
 
 @dataclass(frozen=True)
@@ -83,6 +83,13 @@ def atomic_write_text(path: Path, content: str) -> None:
 
 def write_jsonl(path: Path, records: Iterable[dict]) -> None:
     atomic_write_text(path, serialize_jsonl(records))
+
+
+def append_jsonl_record(path: Path, record: dict) -> None:
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    if existing and not existing.endswith("\n"):
+        existing += "\n"
+    atomic_write_text(path, existing + serialize_jsonl([record]))
 
 
 def raise_on_errors(errors: list[JsonlError]) -> None:

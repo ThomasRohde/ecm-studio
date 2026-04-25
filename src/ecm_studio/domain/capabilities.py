@@ -56,15 +56,29 @@ def next_order(capabilities: Iterable[Capability], parent_id: str | None) -> int
     return max(sibling_orders, default=-1) + 1
 
 
+def with_computed_types(capabilities: Iterable[Capability]) -> list[Capability]:
+    capability_list = list(capabilities)
+    parent_ids = {
+        capability.parent_id for capability in capability_list if capability.parent_id is not None
+    }
+    return [
+        capability.model_copy(
+            update={"type": "abstract" if capability.id in parent_ids else "leaf"}
+        )
+        for capability in capability_list
+    ]
+
+
 def create_capability(capabilities: list[Capability], input_data: CapabilityCreate) -> Capability:
     name = input_data.name.strip()
     if not name:
         raise ValidationFailed("Capability name is required.")
     assert_unique_name(capabilities, name)
     assert_parent_exists(capabilities, input_data.parent_id)
-    data = input_data.model_dump(mode="json")
+    data = input_data.model_dump(mode="json", exclude={"type"})
     data["name"] = name
     data["order"] = next_order(capabilities, input_data.parent_id)
+    data["type"] = "leaf"
     return Capability(**data)
 
 

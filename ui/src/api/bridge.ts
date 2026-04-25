@@ -1,6 +1,8 @@
 import type {
   AppSettings,
+  AuditEvent,
   Capability,
+  CapabilityPatch,
   Checkpoint,
   Diagnostic,
   Envelope,
@@ -43,6 +45,7 @@ const mockState: {
   checkpoints: Checkpoint[];
   settings: AppSettings;
   git: GitStatus;
+  audit: AuditEvent[];
 } = {
   workspace: null,
   capabilities: [],
@@ -54,6 +57,7 @@ const mockState: {
     recent_workspaces: [],
   },
   git: mockGitStatus(),
+  audit: [],
 };
 
 async function call<T>(method: string, ...args: unknown[]): Promise<T> {
@@ -114,7 +118,7 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
       aliases: input.aliases || [],
       description: input.description || '',
       domain: input.domain || '',
-      type: input.type || 'leaf',
+      type: 'leaf',
       parent_id: input.parent_id || null,
       order: mockState.capabilities.length,
       lifecycle_status: input.lifecycle_status || 'Draft',
@@ -130,6 +134,22 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
       children: [],
     };
     mockState.capabilities.push(capability);
+    applyComputedCapabilityTypes();
+    mockState.audit.unshift({
+      source: 'ecm/capability_versions.jsonl',
+      line: mockState.audit.length + 1,
+      record: {
+        _t: 'capability_version',
+        schema_version: '1.0',
+        id: crypto.randomUUID(),
+        capability_id: capability.id,
+        action: 'create',
+        summary: `Created capability "${capability.name}".`,
+        after: capability,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    });
     return capability as T;
   }
   if (method === 'capabilities_update') {
@@ -138,12 +158,30 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
     const existing = mockState.capabilities.find((c) => c.id === id);
     if (!existing) throw new Error('VALIDATION_FAILED: Capability not found.');
     Object.assign(existing, patch, { updated_at: new Date().toISOString() });
+    applyComputedCapabilityTypes();
+    mockState.audit.unshift({
+      source: 'ecm/capability_versions.jsonl',
+      line: mockState.audit.length + 1,
+      record: {
+        _t: 'capability_version',
+        schema_version: '1.0',
+        id: crypto.randomUUID(),
+        capability_id: existing.id,
+        action: 'update',
+        summary: `Updated capability "${existing.name}".`,
+        patch,
+        after: existing,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    });
     return existing as T;
   }
   if (method === 'capabilities_move') {
     const existing = mockState.capabilities.find((c) => c.id === args[0]);
     if (!existing) throw new Error('VALIDATION_FAILED: Capability not found.');
     existing.parent_id = (args[1] as string | null) ?? null;
+    applyComputedCapabilityTypes();
     return existing as T;
   }
   if (method === 'capabilities_get') {
@@ -183,6 +221,7 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
     return checkpoint as T;
   }
   if (method === 'diagnostics_run') return [] as T;
+  if (method === 'audit_recent') return mockState.audit.slice(0, Number(args[0] || 100)) as T;
   if (method === 'capabilities_export') return { path: 'mock', count: mockState.capabilities.length } as T;
   if (method === 'models_export') {
     return { format: args[0] as ModelFormat, path: 'C:\\Mock\\exports\\capabilities.jsonl', count: mockState.capabilities.length } as T;
@@ -207,6 +246,7 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
 }
 
 function buildTree(flat: Capability[]): Capability[] {
+  applyComputedCapabilityTypes();
   const byId = new Map(flat.map((cap) => [cap.id, { ...cap, children: [] as Capability[] }]));
   const roots: Capability[] = [];
   for (const cap of byId.values()) {
@@ -214,6 +254,13 @@ function buildTree(flat: Capability[]): Capability[] {
     else roots.push(cap);
   }
   return roots;
+}
+
+function applyComputedCapabilityTypes() {
+  const parentIds = new Set(mockState.capabilities.map((cap) => cap.parent_id).filter(Boolean));
+  for (const capability of mockState.capabilities) {
+    capability.type = parentIds.has(capability.id) ? 'abstract' : 'leaf';
+  }
 }
 
 export const api = {
@@ -233,7 +280,7 @@ export const api = {
     listTree: () => call<Capability[]>('capabilities_list_tree'),
     get: (id: string) => call<Capability>('capabilities_get', id),
     create: (input: Partial<Capability>) => call<Capability>('capabilities_create', input),
-    update: (id: string, patch: Partial<Capability>) => call<Capability>('capabilities_update', id, patch),
+    update: (id: string, patch: CapabilityPatch) => call<Capability>('capabilities_update', id, patch),
     move: (id: string, parentId: string | null, order?: number) => call<Capability>('capabilities_move', id, parentId, order),
     export: (format: 'csv' | 'json') => call<{ path: string; count: number }>('capabilities_export', format),
   },
@@ -260,6 +307,9 @@ export const api = {
   },
   diagnostics: {
     run: () => call<Diagnostic[]>('diagnostics_run'),
+  },
+  audit: {
+    recent: (limit = 100) => call<AuditEvent[]>('audit_recent', limit),
   },
 };
 

@@ -3,10 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-CONFIG_FILE = "ecm-workbench.json"
-WORKBENCH_DIR = ".ecm-workbench"
-CACHE_DIR = ".ecm-workbench/cache"
-LOGS_DIR = ".ecm-workbench/logs"
+CONFIG_FILE = "ecm-studio.json"
+STUDIO_DIR = ".ecm-studio"
+CACHE_DIR = ".ecm-studio/cache"
+LOGS_DIR = ".ecm-studio/logs"
 ECM_DIR = "ecm"
 CAPABILITIES_FILE = "ecm/capabilities.jsonl"
 CAPABILITY_VERSIONS_FILE = "ecm/capability_versions.jsonl"
@@ -17,7 +17,7 @@ DOWNSTREAM_CONSUMERS_FILE = "ecm/downstream_consumers.jsonl"
 PUBLISH_EVENTS_FILE = "ecm/publish_events.jsonl"
 TASKS_FILE = "ecm/tasks.jsonl"
 EXPORTS_DIR = "ecm/exports"
-SQLITE_FILE = ".ecm-workbench/cache/ecm.sqlite"
+SQLITE_FILE = ".ecm-studio/cache/ecm.sqlite"
 
 MANAGED_PATHS = [
     CONFIG_FILE,

@@ -8,10 +8,10 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
-from ecm_workbench.domain.capabilities import normalize_name
-from ecm_workbench.domain.errors import Diagnostic, ImportInvalid, ImportUnsupportedFormat
-from ecm_workbench.domain.models import Capability, now_iso
-from ecm_workbench.infrastructure.jsonl import atomic_write_text, serialize_jsonl
+from ecm_studio.domain.capabilities import normalize_name, with_computed_types
+from ecm_studio.domain.errors import Diagnostic, ImportInvalid, ImportUnsupportedFormat
+from ecm_studio.domain.models import Capability, now_iso
+from ecm_studio.infrastructure.jsonl import atomic_write_text, serialize_jsonl
 
 ImportFormat = Literal["jsonl", "csv", "json_bundle"]
 ImportMode = Literal["validate_only", "append", "replace", "merge_by_id"]
@@ -83,6 +83,7 @@ class ModelIOService:
     def export(
         self, format_name: ImportFormat, target_path: Path, capabilities: list[Capability]
     ) -> Path:
+        capabilities = with_computed_types(capabilities)
         target_path.parent.mkdir(parents=True, exist_ok=True)
         if format_name == "jsonl":
             content = serialize_jsonl(
@@ -241,6 +242,7 @@ class ModelIOService:
         else:
             raise ImportInvalid([{"code": "IMPORT_INVALID_MODE", "mode": mode}])
 
+        result = with_computed_types(result)
         diagnostics.extend(_validate_capabilities(result, "result", require_parents=True))
         return result, added, updated, skipped, diagnostics
 

@@ -3,9 +3,9 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ecm-workbench"
+name = "ecm-studio"
 dynamic = ["version"]
-description = "Desktop-first Enterprise Capability Model workbench with Git-managed JSONL storage."
+description = "Desktop-first Enterprise Capability Model studio with Git-managed JSONL storage."
 readme = "README.md"
 requires-python = ">=3.13"
 license = "MIT"
@@ -37,14 +37,14 @@ dev = [
 ]
 
 [project.gui-scripts]
-ecmw = "ecm_workbench.cli:main"
+ecms = "ecm_studio.cli:main"
 
 [tool.hatch.version]
-path = "src/ecm_workbench/__init__.py"
+path = "src/ecm_studio/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/ecm_workbench"]
-artifacts = ["src/ecm_workbench/assets/**"]
+packages = ["src/ecm_studio"]
+artifacts = ["src/ecm_studio/assets/**"]
 
 [tool.ruff]
 line-length = 100

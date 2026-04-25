@@ -19,7 +19,7 @@ dist/
 !packaging/*.spec
 
 # ECM runtime state
-.ecm-workbench/
+.ecm-studio/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal

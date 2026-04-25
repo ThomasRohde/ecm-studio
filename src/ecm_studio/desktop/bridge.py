@@ -5,9 +5,9 @@ from typing import Any
 
 import webview
 
-from ecm_workbench.application.results import envelope
-from ecm_workbench.application.services import AppServices
-from ecm_workbench.desktop.theme import apply_windows_chrome_theme
+from ecm_studio.application.results import envelope
+from ecm_studio.application.services import AppServices
+from ecm_studio.desktop.theme import apply_windows_chrome_theme
 
 
 class BridgeApi:
@@ -163,6 +163,10 @@ class BridgeApi:
     @envelope
     def diagnostics_run(self) -> list[dict[str, Any]]:
         return self._services.diagnostics.run()
+
+    @envelope
+    def audit_recent(self, limit: int = 100) -> list[dict[str, Any]]:
+        return self._services.audit.recent(limit)
 
     @envelope
     def dialog_pick_workspace(self) -> str | None:

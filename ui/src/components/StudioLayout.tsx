@@ -17,7 +17,7 @@ const components = {
   audit: AuditPanel,
 };
 
-export function WorkbenchLayout() {
+export function StudioLayout() {
   const setApi = useLayoutStore((state) => state.setApi);
   const syncOpenPanels = useLayoutStore((state) => state.syncOpenPanels);
   const resolvedTheme = useSettingsStore((state) => state.settings.resolved_theme);

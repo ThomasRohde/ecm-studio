@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ecm_workbench.domain.models import Capability
-from ecm_workbench.infrastructure.repository import CapabilityRepository
-from ecm_workbench.infrastructure.sqlite_projection import SQLiteProjection
-from ecm_workbench.infrastructure.workspace import WorkspaceRepository
+from ecm_studio.domain.models import Capability
+from ecm_studio.infrastructure.repository import CapabilityRepository
+from ecm_studio.infrastructure.sqlite_projection import SQLiteProjection
+from ecm_studio.infrastructure.workspace import WorkspaceRepository
 
 
 def test_sqlite_rebuild_and_search(tmp_path: Path) -> None:

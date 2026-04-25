@@ -1,0 +1,5 @@
+# ECM Studio local runtime state
+.ecm-studio/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

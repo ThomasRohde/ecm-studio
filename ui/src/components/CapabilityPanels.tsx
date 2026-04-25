@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, Text, Textarea, Dropdown, Option } from '@fluentui/react-components';
-import type { Capability } from '../api/types';
+import type { Capability, CapabilityPatch } from '../api/types';
 import { api } from '../api/bridge';
 import { useAppStore } from '../store/app-store';
 
@@ -19,13 +19,29 @@ function TreeNode({ node, depth }: { node: Capability; depth: number }) {
         onClick={() => setSelected(node)}
       >
         <span className="tree-name">{node.name}</span>
-        <span className="tree-kind">{node.type}</span>
       </button>
       {(node.children ?? []).map((child) => (
         <TreeNode key={child.id} node={child} depth={depth + 1} />
       ))}
     </div>
   );
+}
+
+function capabilityPatch(draft: Capability): CapabilityPatch {
+  return {
+    name: draft.name,
+    aliases: draft.aliases,
+    description: draft.description,
+    domain: draft.domain,
+    lifecycle_status: draft.lifecycle_status,
+    effective_from: draft.effective_from,
+    effective_to: draft.effective_to,
+    rationale: draft.rationale,
+    source_references: draft.source_references,
+    tags: draft.tags,
+    steward_id: draft.steward_id,
+    steward_department: draft.steward_department,
+  };
 }
 
 export function CapabilityTreePanel() {
@@ -86,7 +102,7 @@ export function CapabilityTreePanel() {
   const flat = useMemo(() => flatten(tree), [tree]);
 
   return (
-    <section className="panel stack">
+    <section className="panel stack capability-tree-panel">
       <div className="toolbar">
         <Input value={query} onChange={(_, data) => void runSearch(data.value)} placeholder="Search capabilities" />
         <Button onClick={refresh}>Refresh</Button>
@@ -98,15 +114,15 @@ export function CapabilityTreePanel() {
       </div>
       {!workspace ? <Text>Open or initialize a workspace first.</Text> : null}
       {query.trim() ? (
-        <div className="tree">
+        <div className="tree capability-tree-scroll">
           {results.map((capability) => (
             <button key={capability.id} className="tree-row" onClick={() => setSelected(capability)}>
-              <span>{capability.name}</span>
+              <span className="tree-name">{capability.name}</span>
             </button>
           ))}
         </div>
       ) : (
-        <div className="tree">
+        <div className="tree capability-tree-scroll">
           {tree.map((node) => <TreeNode key={node.id} node={node} depth={0} />)}
         </div>
       )}
@@ -123,14 +139,15 @@ export function InspectorPanel() {
   const setError = useAppStore((s) => s.setError);
   const [draft, setDraft] = useState<Capability | null>(selected);
 
-  useEffect(() => setDraft(selected), [selected?.id, selected?.updated_at]);
+  useEffect(() => setDraft(selected ? { ...selected } : null), [selected]);
 
   async function save() {
     if (!draft) return;
     try {
-      const updated = await api.capabilities.update(draft.id, draft);
+      const updated = await api.capabilities.update(draft.id, capabilityPatch(draft));
       setSelected(updated);
       setTree(await api.capabilities.listTree());
+      setError(null);
     } catch (error) {
       setError(String(error));
     }
@@ -156,12 +173,6 @@ export function InspectorPanel() {
       <Text weight="semibold">Capability Inspector</Text>
       <label>Name<Input value={draft.name} onChange={(_, d) => setDraft({ ...draft, name: d.value })} /></label>
       <label>Domain<Input value={draft.domain} onChange={(_, d) => setDraft({ ...draft, domain: d.value })} /></label>
-      <label>Type
-        <Dropdown selectedOptions={[draft.type]} value={draft.type} onOptionSelect={(_, d) => setDraft({ ...draft, type: d.optionValue as Capability['type'] })}>
-          <Option value="abstract">abstract</Option>
-          <Option value="leaf">leaf</Option>
-        </Dropdown>
-      </label>
       <label>Status
         <Dropdown selectedOptions={[draft.lifecycle_status]} value={draft.lifecycle_status} onOptionSelect={(_, d) => setDraft({ ...draft, lifecycle_status: d.optionValue as Capability['lifecycle_status'] })}>
           <Option value="Draft">Draft</Option>

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ecm_workbench.domain.models import Capability
-from ecm_workbench.infrastructure.jsonl import read_capabilities
-from ecm_workbench.infrastructure.repository import CapabilityRepository
+from ecm_studio.domain.models import Capability
+from ecm_studio.infrastructure.jsonl import read_capabilities
+from ecm_studio.infrastructure.repository import CapabilityRepository
 
 
 def test_jsonl_serialization_is_deterministic(tmp_path: Path) -> None:

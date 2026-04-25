@@ -4,7 +4,7 @@ import csv
 import json
 from pathlib import Path
 
-from ecm_workbench.domain.models import Capability
+from ecm_studio.domain.models import Capability
 
 
 class ExportService:

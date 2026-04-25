@@ -1,0 +1,20 @@
+{
+  "capabilities_file": "demos\\stress-workspace\\ecm\\capabilities.jsonl",
+  "capability_count": 3180,
+  "domains": [
+    "Customer",
+    "Product",
+    "Sales",
+    "Operations",
+    "Finance",
+    "Risk",
+    "Technology",
+    "Data",
+    "People",
+    "Legal",
+    "Sourcing",
+    "Sustainability"
+  ],
+  "generated_at": "2026-04-25T00:00:00Z",
+  "workspace": "demos\\stress-workspace"
+}

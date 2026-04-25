@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from ecm_workbench.domain.errors import WorkspaceNotOpen
-from ecm_workbench.infrastructure.workspace import WorkspaceRepository
+from ecm_studio.domain.errors import WorkspaceNotOpen
+from ecm_studio.infrastructure.workspace import WorkspaceRepository
 
 
 @dataclass

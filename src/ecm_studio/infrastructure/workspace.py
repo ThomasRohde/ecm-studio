@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ecm_workbench.domain.errors import ValidationFailed
-from ecm_workbench.domain.models import WorkspaceConfig
+from ecm_studio.domain.errors import ValidationFailed
+from ecm_studio.domain.models import WorkspaceConfig
 
 from .jsonl import atomic_write_text
 from .paths import (
@@ -17,8 +17,8 @@ from .paths import (
 )
 
 WORKSPACE_GITIGNORE = """\
-# ECM Workbench local runtime state
-.ecm-workbench/
+# ECM Studio local runtime state
+.ecm-studio/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
@@ -53,7 +53,7 @@ class WorkspaceRepository:
                 file_path.write_text("", encoding="utf-8", newline="\n")
         gitignore = self.root / ".gitignore"
         existing = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
-        if ".ecm-workbench/" not in existing:
+        if ".ecm-studio/" not in existing:
             atomic_write_text(
                 gitignore, (existing.rstrip() + "\n\n" + WORKSPACE_GITIGNORE).lstrip()
             )

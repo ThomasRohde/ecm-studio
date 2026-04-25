@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from ecm_workbench.domain.errors import AppError
-from ecm_workbench.infrastructure.git_service import GitService
-from ecm_workbench.infrastructure.workspace import WorkspaceRepository
+from ecm_studio.domain.errors import AppError
+from ecm_studio.infrastructure.git_service import GitService
+from ecm_studio.infrastructure.workspace import WorkspaceRepository
 
 
 def test_git_checkpoint_history_compare_and_restore(tmp_path: Path) -> None:

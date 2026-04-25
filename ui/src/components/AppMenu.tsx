@@ -64,7 +64,7 @@ export function AppMenu({ open, onClose }: AppMenuProps) {
       <aside className="app-menu open">
         <div className="app-menu-header">
           <div>
-            <Text weight="semibold">ECM Workbench</Text>
+            <Text weight="semibold">ECM Studio</Text>
             <Text size={200}>Views, layout, and workspace actions</Text>
           </div>
           <Button appearance="subtle" aria-label="Close menu" onClick={onClose}>

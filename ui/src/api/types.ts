@@ -60,6 +60,22 @@ export interface Capability {
   children?: Capability[];
 }
 
+export type CapabilityPatch = Pick<
+  Capability,
+  | 'name'
+  | 'aliases'
+  | 'description'
+  | 'domain'
+  | 'lifecycle_status'
+  | 'effective_from'
+  | 'effective_to'
+  | 'rationale'
+  | 'source_references'
+  | 'tags'
+  | 'steward_id'
+  | 'steward_department'
+>;
+
 export interface SearchResult {
   id: string;
   name: string;
@@ -108,4 +124,11 @@ export interface ExportResult {
   format: ModelFormat;
   path: string;
   count: number;
+}
+
+export interface AuditEvent {
+  source: string;
+  line: number;
+  record?: Record<string, unknown>;
+  error?: { line: number; message: string };
 }

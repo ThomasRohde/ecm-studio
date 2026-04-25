@@ -5,31 +5,42 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from ecm_workbench.domain.capabilities import (
+from ecm_studio.domain.capabilities import (
     build_tree,
     create_capability,
+    get_capability,
     move_capability,
     replace_capability,
     update_capability,
+    with_computed_types,
 )
-from ecm_workbench.domain.errors import (
+from ecm_studio.domain.errors import (
     Diagnostic,
     ImportInvalid,
     JsonlParseFailed,
     ValidationFailed,
 )
-from ecm_workbench.domain.models import Capability, CapabilityCreate, CapabilityPatch
-from ecm_workbench.infrastructure.git_service import GitService
-from ecm_workbench.infrastructure.model_io import (
+from ecm_studio.domain.models import (
+    Capability,
+    CapabilityCreate,
+    CapabilityEvent,
+    CapabilityPatch,
+    ModelEvent,
+)
+from ecm_studio.infrastructure.events import EventRepository
+from ecm_studio.infrastructure.git_service import GitService
+from ecm_studio.infrastructure.jsonl import read_raw_jsonl
+from ecm_studio.infrastructure.model_io import (
     ImportFormat,
     ImportMode,
     ModelIOService,
     default_export_path,
 )
-from ecm_workbench.infrastructure.repository import CapabilityRepository
-from ecm_workbench.infrastructure.settings import SettingsRepository
-from ecm_workbench.infrastructure.sqlite_projection import SQLiteProjection
-from ecm_workbench.infrastructure.workspace import WorkspaceRepository
+from ecm_studio.infrastructure.paths import CAPABILITY_VERSIONS_FILE, MODEL_VERSIONS_FILE
+from ecm_studio.infrastructure.repository import CapabilityRepository
+from ecm_studio.infrastructure.settings import SettingsRepository
+from ecm_studio.infrastructure.sqlite_projection import SQLiteProjection
+from ecm_studio.infrastructure.workspace import WorkspaceRepository
 
 from .context import AppContext
 
@@ -131,32 +142,65 @@ class CapabilityService:
         capabilities = self._load()
         capability = create_capability(capabilities, create_input)
         capabilities.append(capability)
-        self._save_and_rebuild(capabilities)
+        capabilities = with_computed_types(capabilities)
+        capability = get_capability(capabilities, capability.id)
+        self._save_and_rebuild(
+            capabilities,
+            CapabilityEvent(
+                capability_id=capability.id,
+                action="create",
+                summary=f'Created capability "{capability.name}".',
+                after=capability.durable_dict(),
+                patch=create_input.model_dump(exclude_unset=True, mode="json"),
+            ),
+        )
         return capability_dto(capability)
 
     def update(self, capability_id: str, patch_data: dict[str, Any]) -> dict[str, Any]:
-        sanitized = {
-            key: value
-            for key, value in patch_data.items()
-            if value is not None or key in {"effective_from", "effective_to"}
-        }
+        sanitized = _sanitize_capability_patch(patch_data)
         try:
             patch = CapabilityPatch.model_validate(sanitized)
         except ValidationError as exc:
             raise ValidationFailed("Invalid capability patch input.", exc.errors()) from exc
         capabilities = self._load()
+        before = get_capability(capabilities, capability_id)
         updated = update_capability(capabilities, capability_id, patch)
         capabilities = replace_capability(capabilities, updated)
-        self._save_and_rebuild(capabilities)
+        capabilities = with_computed_types(capabilities)
+        updated = get_capability(capabilities, updated.id)
+        self._save_and_rebuild(
+            capabilities,
+            CapabilityEvent(
+                capability_id=updated.id,
+                action="update",
+                summary=f'Updated capability "{updated.name}".',
+                before=before.durable_dict(),
+                after=updated.durable_dict(),
+                patch=patch.model_dump(exclude_unset=True, mode="json"),
+            ),
+        )
         return capability_dto(updated)
 
     def move(
         self, capability_id: str, new_parent_id: str | None, order: int | None = None
     ) -> dict[str, Any]:
         capabilities = self._load()
+        before = get_capability(capabilities, capability_id)
         moved = move_capability(capabilities, capability_id, new_parent_id, order)
         capabilities = replace_capability(capabilities, moved)
-        self._save_and_rebuild(capabilities)
+        capabilities = with_computed_types(capabilities)
+        moved = get_capability(capabilities, moved.id)
+        self._save_and_rebuild(
+            capabilities,
+            CapabilityEvent(
+                capability_id=moved.id,
+                action="move",
+                summary=f'Moved capability "{moved.name}".',
+                before=before.durable_dict(),
+                after=moved.durable_dict(),
+                patch={"parent_id": new_parent_id, "order": moved.order},
+            ),
+        )
         return capability_dto(moved)
 
     def export(self, format_name: str) -> dict[str, Any]:
@@ -178,9 +222,16 @@ class CapabilityService:
             raise JsonlParseFailed(errors)
         return capabilities
 
-    def _save_and_rebuild(self, capabilities: list[Capability]) -> None:
-        self._repo().save(capabilities)
-        SQLiteProjection(self.context.require_workspace()).rebuild()
+    def _save_and_rebuild(
+        self, capabilities: list[Capability], event: CapabilityEvent | None = None
+    ) -> None:
+        workspace = self.context.require_workspace()
+        CapabilityRepository(workspace.paths.capabilities_file).save(capabilities)
+        if event is not None:
+            EventRepository(workspace.paths.resolve(CAPABILITY_VERSIONS_FILE)).append_capability_event(
+                event
+            )
+        SQLiteProjection(workspace).rebuild()
 
 
 class SearchService:
@@ -220,7 +271,17 @@ class ModelService:
             if git.is_repo():
                 checkpoint = git.checkpoint(f"Pre-import checkpoint for {Path(source_path).name}")
                 checkpoint_id = checkpoint.id or None
-        CapabilityRepository(workspace.paths.capabilities_file).save(plan.result)
+        import_result = with_computed_types(plan.result)
+        CapabilityRepository(workspace.paths.capabilities_file).save(import_result)
+        EventRepository(workspace.paths.resolve(MODEL_VERSIONS_FILE)).append_model_event(
+            ModelEvent(
+                action=f"import_{import_mode}",
+                summary=f'Imported model from "{Path(source_path).name}" using {import_mode}.',
+                capability_count=len(import_result),
+                source_path=str(source_path),
+                checkpoint_id=checkpoint_id,
+            )
+        )
         rebuild = SQLiteProjection(workspace).rebuild()
         result = plan.to_dict(applied=True, checkpoint_id=checkpoint_id)
         result["rebuild"] = rebuild.to_dict()
@@ -327,6 +388,17 @@ class DiagnosticsService:
                         line=error["line"],
                     )
                 )
+        for relative in [CAPABILITY_VERSIONS_FILE, MODEL_VERSIONS_FILE]:
+            event_result = read_raw_jsonl(workspace.paths.resolve(relative))
+            for error in event_result.errors:
+                diagnostics.append(
+                    Diagnostic(
+                        code="JSONL_PARSE_FAILED",
+                        message=error.message,
+                        path=relative,
+                        line=error.line,
+                    )
+                )
         projection = SQLiteProjection(workspace)
         if not projection.is_current():
             diagnostics.append(
@@ -348,6 +420,20 @@ class DiagnosticsService:
         return [diagnostic.to_dict() for diagnostic in diagnostics]
 
 
+class AuditService:
+    def __init__(self, context: AppContext) -> None:
+        self.context = context
+
+    def recent(self, limit: int = 100) -> list[dict[str, Any]]:
+        workspace = self.context.require_workspace()
+        events: list[dict[str, Any]] = []
+        for relative in [CAPABILITY_VERSIONS_FILE, MODEL_VERSIONS_FILE]:
+            for item in EventRepository(workspace.paths.resolve(relative)).recent(limit):
+                events.append({"source": relative, **item})
+        events.sort(key=_audit_sort_key, reverse=True)
+        return events[: max(0, limit)]
+
+
 class AppServices:
     def __init__(self, settings_path: Path | None = None) -> None:
         settings = SettingsRepository(settings_path)
@@ -359,6 +445,7 @@ class AppServices:
         self.search = SearchService(self.context)
         self.git = GitAppService(self.context)
         self.diagnostics = DiagnosticsService(self.context)
+        self.audit = AuditService(self.context)
 
 
 def _import_mode(value: str) -> ImportMode:
@@ -373,3 +460,36 @@ def _model_format(value: str) -> ImportFormat:
     if value in {"jsonl", "csv", "json_bundle"}:
         return value
     raise ValidationFailed("Model format must be jsonl, csv, or json_bundle.")
+
+
+def _sanitize_capability_patch(patch_data: dict[str, Any]) -> dict[str, Any]:
+    allowed = set(CapabilityPatch.model_fields)
+    ignored = {
+        "_t",
+        "schema_version",
+        "id",
+        "parent_id",
+        "order",
+        "type",
+        "created_at",
+        "updated_at",
+        "children",
+    }
+    unknown = set(patch_data) - allowed - ignored
+    if unknown:
+        raise ValidationFailed(
+            "Invalid capability patch input.",
+            [{"field": field, "message": "Unknown patch field."} for field in sorted(unknown)],
+        )
+    return {
+        key: value
+        for key, value in patch_data.items()
+        if key in allowed and (value is not None or key in {"effective_from", "effective_to"})
+    }
+
+
+def _audit_sort_key(item: dict[str, Any]) -> str:
+    record = item.get("record")
+    if isinstance(record, dict):
+        return str(record.get("created_at", ""))
+    return ""

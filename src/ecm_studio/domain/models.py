@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 SCHEMA_VERSION = "1.0"
 CapabilityKind = Literal["abstract", "leaf"]
 LifecycleStatus = Literal["Draft", "Active", "Deprecated", "Retired"]
+CapabilityEventAction = Literal["create", "update", "move", "import"]
 
 
 def now_iso() -> str:
@@ -71,7 +72,6 @@ class CapabilityPatch(JsonModel):
     aliases: list[str] | None = None
     description: str | None = None
     domain: str | None = None
-    type: CapabilityKind | None = None
     lifecycle_status: LifecycleStatus | None = None
     effective_from: str | None = None
     effective_to: str | None = None
@@ -85,6 +85,41 @@ class CapabilityPatch(JsonModel):
 class CapabilityTreeNode(JsonModel):
     capability: Capability
     children: list[CapabilityTreeNode] = Field(default_factory=list)
+
+
+class CapabilityEvent(JsonModel):
+    record_type: Literal["capability_version"] = Field("capability_version", alias="_t")
+    schema_version: Literal["1.0"] = SCHEMA_VERSION
+    id: str = Field(default_factory=new_id)
+    capability_id: str
+    action: CapabilityEventAction
+    summary: str
+    before: dict[str, Any] | None = None
+    after: dict[str, Any] | None = None
+    patch: dict[str, Any] = Field(default_factory=dict)
+    actor: str = "local"
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+    def durable_dict(self) -> dict:
+        return self.model_dump(mode="json", by_alias=True)
+
+
+class ModelEvent(JsonModel):
+    record_type: Literal["model_version"] = Field("model_version", alias="_t")
+    schema_version: Literal["1.0"] = SCHEMA_VERSION
+    id: str = Field(default_factory=new_id)
+    action: str
+    summary: str
+    capability_count: int
+    source_path: str | None = None
+    checkpoint_id: str | None = None
+    actor: str = "local"
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+    def durable_dict(self) -> dict:
+        return self.model_dump(mode="json", by_alias=True)
 
 
 class WorkspaceConfig(JsonModel):

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FluentProvider, webDarkTheme, webLightTheme } from '@fluentui/react-components';
-import { WorkbenchLayout } from './components/WorkbenchLayout';
+import { StudioLayout } from './components/StudioLayout';
 import { StatusBar } from './components/StatusBar';
 import { AppMenu } from './components/AppMenu';
 import { applyTheme, useSettingsStore } from './store/settings-store';
@@ -34,11 +34,11 @@ export function App() {
             <span />
           </button>
           <div className="title-copy">
-            <strong>ECM Workbench</strong>
+            <strong>ECM Studio</strong>
             <span>Desktop Git/JSONL capability management</span>
           </div>
         </header>
-        <section className="workbench"><WorkbenchLayout /></section>
+        <section className="studio-area"><StudioLayout /></section>
         <StatusBar />
         <AppMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
       </main>

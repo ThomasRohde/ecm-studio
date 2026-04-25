@@ -8,7 +8,7 @@ from typing import Literal
 from platformdirs import user_config_dir
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from ecm_workbench.domain.models import SCHEMA_VERSION
+from ecm_studio.domain.models import SCHEMA_VERSION
 
 ThemeMode = Literal["system", "light", "dark"]
 ResolvedTheme = Literal["light", "dark"]
@@ -58,7 +58,7 @@ def read_windows_theme() -> ResolvedTheme | None:
 
 class SettingsRepository:
     def __init__(self, path: Path | None = None) -> None:
-        config_dir = Path(user_config_dir("ECM Workbench", appauthor=False))
+        config_dir = Path(user_config_dir("ECM Studio", appauthor=False))
         self.path = path or config_dir / "settings.json"
 
     def load(self) -> AppSettings:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from ecm_workbench.domain.errors import AppError
+from ecm_studio.domain.errors import AppError
 
 
 def ok(data: Any) -> dict[str, Any]:

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Input, Text } from '@fluentui/react-components';
 import { api } from '../api/bridge';
-import type { Checkpoint, ImportMode, ImportPreview, ModelFormat } from '../api/types';
+import type { AuditEvent, Checkpoint, ImportMode, ImportPreview, ModelFormat } from '../api/types';
 import { useAppStore } from '../store/app-store';
 import { useSettingsStore } from '../store/settings-store';
 
@@ -374,10 +374,115 @@ export function DiagnosticsPanel() {
 }
 
 export function AuditPanel() {
+  const [events, setEvents] = useState<AuditEvent[]>([]);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const setError = useAppStore((s) => s.setError);
+
+  async function refresh() {
+    try {
+      setEvents(await api.audit.recent());
+      setExpandedKey(null);
+    } catch (error) {
+      setError(String(error));
+    }
+  }
+
+  useEffect(() => { void refresh(); }, []);
+
   return (
-    <section className="panel stack">
-      <Text weight="semibold">Raw Events / Audit</Text>
-      <Text>This vertical slice persists durable events as JSONL-ready files. Full governance event capture is planned after the storage and Git workflow is stable.</Text>
+    <section className="panel stack audit-panel">
+      <div className="toolbar">
+        <Text weight="semibold">Audit</Text>
+        <Button onClick={() => void refresh()}>Refresh</Button>
+      </div>
+      {events.length === 0 ? <Text>No audit events recorded yet.</Text> : null}
+      <div className="audit-list">
+        {events.map((event, index) => (
+          <AuditListItem
+            event={event}
+            expanded={expandedKey === auditEventKey(event, index)}
+            key={auditEventKey(event, index)}
+            onToggle={() => {
+              const key = auditEventKey(event, index);
+              setExpandedKey((current) => current === key ? null : key);
+            }}
+          />
+        ))}
+      </div>
     </section>
   );
+}
+
+function AuditListItem({
+  event,
+  expanded,
+  onToggle,
+}: {
+  event: AuditEvent;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const record = event.record;
+  const action = auditField(record, 'action') ?? (event.error ? 'error' : 'event');
+  const title = auditField(record, 'summary') ?? event.error?.message ?? 'Audit event';
+  const timestamp = auditField(record, 'created_at') ?? auditField(record, 'updated_at') ?? 'No timestamp';
+  const target = auditTarget(record);
+  const actor = auditField(record, 'actor');
+  const detailPayload = event.error ?? record ?? {};
+
+  return (
+    <article className={`audit-item ${event.error ? 'error' : ''}`}>
+      <div className="audit-row">
+        <div className="audit-action-mark" aria-hidden="true">{action.slice(0, 1).toUpperCase()}</div>
+        <div className="audit-summary">
+          <div className="audit-title-row">
+            <Text weight="semibold">{title}</Text>
+            <span className="audit-pill">{action}</span>
+          </div>
+          <div className="audit-meta-row">
+            <span>{timestamp}</span>
+            {target ? <span>{target}</span> : null}
+            {actor ? <span>Actor: {actor}</span> : null}
+            <span>{event.source}:{event.line}</span>
+          </div>
+        </div>
+        <Button appearance="subtle" onClick={onToggle}>
+          {expanded ? 'Hide Details' : 'Details'}
+        </Button>
+      </div>
+      {expanded ? (
+        <div className="audit-details">
+          <div className="audit-detail-grid">
+            <span>Source</span><strong>{event.source}:{event.line}</strong>
+            <span>Action</span><strong>{action}</strong>
+            <span>Target</span><strong>{target || 'n/a'}</strong>
+            <span>Timestamp</span><strong>{timestamp}</strong>
+          </div>
+          <pre className="audit-record">{JSON.stringify(detailPayload, null, 2)}</pre>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function auditEventKey(event: AuditEvent, index: number) {
+  const id = auditField(event.record, 'id');
+  return `${event.source}:${event.line}:${id ?? index}`;
+}
+
+function auditField(record: AuditEvent['record'], key: string): string | null {
+  const value = record?.[key];
+  if (typeof value === 'string' && value.trim()) return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return null;
+}
+
+function auditTarget(record: AuditEvent['record']) {
+  const capabilityId = auditField(record, 'capability_id');
+  if (capabilityId) return `Capability ${capabilityId.slice(0, 8)}`;
+  const checkpointId = auditField(record, 'checkpoint_id');
+  if (checkpointId) return `Checkpoint ${checkpointId.slice(0, 10)}`;
+  const count = auditField(record, 'capability_count');
+  if (count) return `${count} capabilities`;
+  return null;
 }

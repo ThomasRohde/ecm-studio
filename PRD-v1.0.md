@@ -359,7 +359,7 @@ NFR-11 Offline-first operation: core authoring, review, diff, search, and releas
 
 ### 14.2 Technology stack direction
 - App shell: Python 3.13+ with pywebview using Windows WebView2.
-- UI: React, TypeScript, Vite, and Dockview for a multi-panel workbench similar in interaction model to EA Workbench.
+- UI: React, TypeScript, Vite, and Dockview for a multi-panel studio UI similar in interaction model to EA Workbench.
 - UI assets: bundled locally so the desktop app can run offline.
 - Application services: Python services exposed to the UI through the WebView bridge or local IPC boundary.
 - Durable storage: JSONL files in the selected Git repository.
@@ -372,8 +372,8 @@ The exact layout may evolve, but the MVP should follow this shape:
 
 ```text
 repo-root/
-  ecm-workbench.json
-  .ecm-workbench/
+  ecm-studio.json
+  .ecm-studio/
     cache/
       ecm.sqlite
     logs/
@@ -389,7 +389,7 @@ repo-root/
     exports/
 ```
 
-Files under `.ecm-workbench/` are local runtime state and should be gitignored. Durable ECM records live under `ecm/` unless a later repository contract deliberately changes the layout.
+Files under `.ecm-studio/` are local runtime state and should be gitignored. Durable ECM records live under `ecm/` unless a later repository contract deliberately changes the layout.
 
 ### 14.4 Design implications
 - Domain logic must not depend on WebView, React, SQLite, Git, or file-system details.

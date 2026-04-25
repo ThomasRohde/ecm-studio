@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ecm_workbench.desktop.theme import apply_windows_chrome_theme
-from ecm_workbench.infrastructure.settings import SettingsRepository, resolve_theme
+from ecm_studio.desktop.theme import apply_windows_chrome_theme
+from ecm_studio.infrastructure.settings import SettingsRepository, resolve_theme
 
 
 def test_settings_persist_theme_and_recent_workspaces(tmp_path: Path) -> None:

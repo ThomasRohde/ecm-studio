@@ -7,7 +7,7 @@ from . import __version__
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="ecmw", description="ECM Workbench desktop app")
+    parser = argparse.ArgumentParser(prog="ecms", description="ECM Studio desktop app")
     parser.add_argument("workspace", nargs="?", help="Workspace repository path to open")
     parser.add_argument("--dev-ui", help="Load UI from a Vite dev server URL")
     parser.add_argument("--version", action="store_true", help="Print version and exit")

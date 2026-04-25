@@ -1,4 +1,4 @@
-# Build with: pyinstaller packaging/ecmw.spec
+# Build with: pyinstaller packaging/ecms.spec
 from pathlib import Path
 
 block_cipher = None
@@ -6,10 +6,10 @@ root = Path.cwd()
 
 
 a = Analysis(
-    [str(root / "src" / "ecm_workbench" / "cli.py")],
+    [str(root / "src" / "ecm_studio" / "cli.py")],
     pathex=[str(root / "src")],
     binaries=[],
-    datas=[(str(root / "ui" / "dist"), "ecm_workbench/assets/ui")],
+    datas=[(str(root / "ui" / "dist"), "ecm_studio/assets/ui")],
     hiddenimports=["webview.platforms.edgechromium"],
     hookspath=[],
     hooksconfig={},
@@ -26,7 +26,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="ecmw",
+    name="ecms",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -41,5 +41,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name="ecmw",
+    name="ecms",
 )

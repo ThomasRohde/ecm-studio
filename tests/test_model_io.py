@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ecm_workbench.application.services import AppServices
-from ecm_workbench.domain.models import Capability
-from ecm_workbench.infrastructure.repository import CapabilityRepository
+from ecm_studio.application.services import AppServices
+from ecm_studio.domain.models import Capability
+from ecm_studio.infrastructure.repository import CapabilityRepository
 
 
 def test_import_csv_append_can_reference_existing_parent(tmp_path: Path) -> None:

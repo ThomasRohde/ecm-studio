@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from ecm_workbench.domain.errors import AppError, ValidationFailed
+from ecm_studio.domain.errors import AppError, ValidationFailed
 
 from .paths import MANAGED_PATHS
 
@@ -187,7 +188,7 @@ class GitService:
                 "GIT_WORKTREE_DIRTY",
                 "Working tree has uncommitted changes. Create a checkpoint before restoring.",
             )
-        self._git("checkout", checkpoint_id, "--", "ecm-workbench.json", "ecm")
+        self._git("checkout", checkpoint_id, "--", "ecm-studio.json", "ecm")
 
     def create_branch(self, name: str, switch: bool = True) -> dict:
         self._require_repo()
@@ -297,15 +298,23 @@ class GitService:
     def _ensure_identity(self) -> None:
         name = self._run_git("config", "user.name", check=False)
         if name.returncode != 0 or not name.stdout.strip():
-            self._git("config", "user.name", "ECM Workbench")
+            self._git("config", "user.name", "ECM Studio")
         email = self._run_git("config", "user.email", check=False)
         if email.returncode != 0 or not email.stdout.strip():
-            self._git("config", "user.email", "ecm-workbench@example.local")
+            self._git("config", "user.email", "ecm-studio@example.local")
 
     def _git(self, *args: str) -> subprocess.CompletedProcess[str]:
         return self._run_git(*args, check=True)
 
     def _run_git(self, *args: str, check: bool) -> subprocess.CompletedProcess[str]:
+        startupinfo = None
+        creationflags = 0
+        if sys.platform == "win32":
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+            creationflags = subprocess.CREATE_NO_WINDOW
+
         result = subprocess.run(
             ["git", *args],
             cwd=self.repo_path,
@@ -314,6 +323,8 @@ class GitService:
             errors="replace",
             capture_output=True,
             check=False,
+            startupinfo=startupinfo,
+            creationflags=creationflags,
         )
         if check and result.returncode != 0:
             raise AppError(
