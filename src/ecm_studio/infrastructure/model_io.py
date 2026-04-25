@@ -8,7 +8,11 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
-from ecm_studio.domain.capabilities import normalize_name, with_computed_types
+from ecm_studio.domain.capabilities import (
+    normalize_name,
+    validate_capability_set,
+    with_computed_types,
+)
 from ecm_studio.domain.errors import Diagnostic, ImportInvalid, ImportUnsupportedFormat
 from ecm_studio.domain.models import Capability, now_iso
 from ecm_studio.infrastructure.jsonl import atomic_write_text, serialize_jsonl
@@ -354,59 +358,8 @@ def _split_multi(value: Any) -> list[str]:
 def _validate_capabilities(
     capabilities: list[Capability], path: str, require_parents: bool
 ) -> list[Diagnostic]:
-    diagnostics: list[Diagnostic] = []
-    ids: set[str] = set()
-    names: dict[str, str] = {}
-    by_id = {capability.id: capability for capability in capabilities}
-
-    for capability in capabilities:
-        if capability.id in ids:
-            diagnostics.append(
-                Diagnostic(
-                    code="IMPORT_INVALID",
-                    message=f'Duplicate capability id "{capability.id}".',
-                    path=path,
-                )
-            )
-        ids.add(capability.id)
-        name = normalize_name(capability.name)
-        if name in names:
-            diagnostics.append(
-                Diagnostic(
-                    code="DUPLICATE_NAME",
-                    message=f'Duplicate capability name "{capability.name}".',
-                    path=path,
-                )
-            )
-        names[name] = capability.id
-        if require_parents and capability.parent_id and capability.parent_id not in by_id:
-            diagnostics.append(
-                Diagnostic(
-                    code="VALIDATION_FAILED",
-                    message=(
-                        f'Parent "{capability.parent_id}" for "{capability.name}" '
-                        "does not exist."
-                    ),
-                    path=path,
-                )
-            )
-
-    for capability in capabilities:
-        seen: set[str] = set()
-        current: Capability | None = capability
-        while current is not None:
-            if current.id in seen:
-                diagnostics.append(
-                    Diagnostic(
-                        code="CYCLE_DETECTED",
-                        message=(
-                            f'Capability "{capability.name}" participates in a '
-                            "hierarchy cycle."
-                        ),
-                        path=path,
-                    )
-                )
-                break
-            seen.add(current.id)
-            current = by_id.get(current.parent_id) if current.parent_id else None
-    return diagnostics
+    return validate_capability_set(
+        capabilities,
+        path=path,
+        require_parents=require_parents,
+    )

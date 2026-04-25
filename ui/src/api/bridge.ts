@@ -177,6 +177,37 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
     });
     return existing as T;
   }
+  if (method === 'capabilities_save') {
+    const id = String(args[0]);
+    const patch = args[1] as Partial<Capability>;
+    const parentId = (args[2] as string | null) ?? null;
+    const order = args[3] as number | undefined;
+    const existing = mockState.capabilities.find((c) => c.id === id);
+    if (!existing) throw new Error('VALIDATION_FAILED: Capability not found.');
+    const previousParentId = existing.parent_id;
+    Object.assign(existing, patch, { updated_at: new Date().toISOString() });
+    if (previousParentId !== parentId || order !== undefined) {
+      moveMockCapability(existing.id, parentId, order);
+    }
+    applyComputedCapabilityTypes();
+    mockState.audit.unshift({
+      source: 'ecm/capability_versions.jsonl',
+      line: mockState.audit.length + 1,
+      record: {
+        _t: 'capability_version',
+        schema_version: '1.0',
+        id: crypto.randomUUID(),
+        capability_id: existing.id,
+        action: 'update',
+        summary: `Saved capability "${existing.name}".`,
+        patch,
+        after: existing,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    });
+    return existing as T;
+  }
   if (method === 'capabilities_move') {
     const existing = mockState.capabilities.find((c) => c.id === args[0]);
     if (!existing) throw new Error('VALIDATION_FAILED: Capability not found.');
@@ -323,6 +354,7 @@ export const api = {
     get: (id: string) => call<Capability>('capabilities_get', id),
     create: (input: Partial<Capability>) => call<Capability>('capabilities_create', input),
     update: (id: string, patch: CapabilityPatch) => call<Capability>('capabilities_update', id, patch),
+    save: (id: string, patch: CapabilityPatch, parentId: string | null, order?: number) => call<Capability>('capabilities_save', id, patch, parentId, order),
     move: (id: string, parentId: string | null, order?: number) => call<Capability>('capabilities_move', id, parentId, order),
     export: (format: 'csv' | 'json') => call<{ path: string; count: number }>('capabilities_export', format),
   },

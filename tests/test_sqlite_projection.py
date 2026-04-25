@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from ecm_studio.domain.errors import JsonlParseFailed
 from ecm_studio.domain.models import Capability
 from ecm_studio.infrastructure.repository import CapabilityRepository
 from ecm_studio.infrastructure.sqlite_projection import SQLiteProjection
@@ -43,3 +46,18 @@ def test_sqlite_rebuild_handles_large_model(tmp_path: Path) -> None:
     result = SQLiteProjection(workspace).rebuild()
 
     assert result.capability_count == 3000
+
+
+def test_sqlite_rebuild_fails_on_structural_repository_errors(tmp_path: Path) -> None:
+    workspace = WorkspaceRepository(tmp_path)
+    workspace.init("Invalid")
+    workspace.paths.capabilities_file.write_text(
+        '{"_t":"capability","schema_version":"1.0","id":"a","name":"A","parent_id":"b"}\n'
+        '{"_t":"capability","schema_version":"1.0","id":"b","name":"B","parent_id":"a"}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(JsonlParseFailed) as exc:
+        SQLiteProjection(workspace).rebuild()
+
+    assert exc.value.detail[0]["code"] == "CYCLE_DETECTED"

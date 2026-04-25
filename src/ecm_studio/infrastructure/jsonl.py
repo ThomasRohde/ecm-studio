@@ -16,21 +16,30 @@ from ecm_studio.domain.models import Capability
 class JsonlError:
     line: int
     message: str
+    code: str = "JSONL_PARSE_FAILED"
+    severity: str = "error"
 
     def to_dict(self) -> dict:
-        return {"line": self.line, "message": self.message}
+        return {
+            "line": self.line,
+            "message": self.message,
+            "code": self.code,
+            "severity": self.severity,
+        }
 
 
 @dataclass(frozen=True)
 class JsonlReadResult:
     records: list[dict]
     errors: list[JsonlError]
+    record_lines: list[int]
 
 
 def read_raw_jsonl(path: Path) -> JsonlReadResult:
     if not path.exists():
-        return JsonlReadResult(records=[], errors=[])
+        return JsonlReadResult(records=[], errors=[], record_lines=[])
     records: list[dict] = []
+    record_lines: list[int] = []
     errors: list[JsonlError] = []
     for index, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if not line.strip():
@@ -41,24 +50,52 @@ def read_raw_jsonl(path: Path) -> JsonlReadResult:
             errors.append(JsonlError(index, f"JSON parse error: {exc.msg}"))
             continue
         if not isinstance(raw, dict):
-            errors.append(JsonlError(index, "JSONL record must be an object."))
+            errors.append(
+                JsonlError(
+                    index,
+                    "JSONL record must be an object.",
+                    code="JSONL_RECORD_INVALID",
+                )
+            )
             continue
         records.append(raw)
-    return JsonlReadResult(records=records, errors=errors)
+        record_lines.append(index)
+    return JsonlReadResult(records=records, errors=errors, record_lines=record_lines)
 
 
-def read_capabilities(path: Path) -> tuple[list[Capability], list[JsonlError]]:
+def read_capabilities_with_lines(
+    path: Path,
+) -> tuple[list[Capability], list[JsonlError], list[int]]:
     result = read_raw_jsonl(path)
     capabilities: list[Capability] = []
+    capability_lines: list[int] = []
     errors = list(result.errors)
-    for line_offset, raw in enumerate(result.records, start=1):
+    for raw, line_number in zip(result.records, result.record_lines, strict=True):
         if raw.get("_t") != "capability":
-            errors.append(JsonlError(line_offset, f"Unsupported record type: {raw.get('_t')!r}"))
+            errors.append(
+                JsonlError(
+                    line_number,
+                    f"Unsupported record type: {raw.get('_t')!r}",
+                    code="JSONL_UNSUPPORTED_RECORD_TYPE",
+                )
+            )
             continue
         try:
             capabilities.append(Capability.model_validate(raw))
+            capability_lines.append(line_number)
         except ValidationError as exc:
-            errors.append(JsonlError(line_offset, exc.errors()[0].get("msg", str(exc))))
+            errors.append(
+                JsonlError(
+                    line_number,
+                    exc.errors()[0].get("msg", str(exc)),
+                    code="VALIDATION_FAILED",
+                )
+            )
+    return capabilities, errors, capability_lines
+
+
+def read_capabilities(path: Path) -> tuple[list[Capability], list[JsonlError]]:
+    capabilities, errors, _ = read_capabilities_with_lines(path)
     return capabilities, errors
 
 

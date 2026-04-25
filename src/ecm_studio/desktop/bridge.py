@@ -77,6 +77,16 @@ class BridgeApi:
         return self._services.capabilities.update(capability_id, patch)
 
     @envelope
+    def capabilities_save(
+        self,
+        capability_id: str,
+        patch: dict[str, Any],
+        new_parent_id: str | None,
+        order: int | None = None,
+    ) -> dict[str, Any]:
+        return self._services.capabilities.save(capability_id, patch, new_parent_id, order)
+
+    @envelope
     def capabilities_move(
         self, capability_id: str, new_parent_id: str | None, order: int | None = None
     ) -> dict[str, Any]:

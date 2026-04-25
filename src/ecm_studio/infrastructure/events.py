@@ -23,8 +23,8 @@ class EventRepository:
             return []
         result = read_raw_jsonl(self.path)
         records = [
-            {"line": index, "record": record}
-            for index, record in enumerate(result.records, start=1)
+            {"line": line_number, "record": record}
+            for record, line_number in zip(result.records, result.record_lines, strict=True)
         ]
         for error in result.errors:
             records.append({"line": error.line, "error": error.to_dict()})

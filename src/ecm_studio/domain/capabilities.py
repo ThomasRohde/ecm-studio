@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable
 
-from .errors import CycleDetected, DuplicateName, ValidationFailed
+from .errors import CycleDetected, Diagnostic, DuplicateName, ValidationFailed
 from .models import Capability, CapabilityCreate, CapabilityPatch, CapabilityTreeNode, now_iso
 
 
@@ -67,6 +67,82 @@ def with_computed_types(capabilities: Iterable[Capability]) -> list[Capability]:
         )
         for capability in capability_list
     ]
+
+
+def validate_capability_set(
+    capabilities: list[Capability],
+    path: str | None = None,
+    require_parents: bool = True,
+    line_numbers: list[int] | None = None,
+) -> list[Diagnostic]:
+    diagnostics: list[Diagnostic] = []
+    ids: dict[str, int] = {}
+    names: dict[str, int] = {}
+    by_id = {capability.id: capability for capability in capabilities}
+
+    def line(index: int) -> int | None:
+        if line_numbers is None or index >= len(line_numbers):
+            return None
+        return line_numbers[index]
+
+    for index, capability in enumerate(capabilities):
+        if capability.id in ids:
+            diagnostics.append(
+                Diagnostic(
+                    code="DUPLICATE_ID",
+                    message=f'Duplicate capability id "{capability.id}".',
+                    path=path,
+                    line=line(index),
+                )
+            )
+        ids[capability.id] = index
+
+        name = normalize_name(capability.name)
+        if name in names:
+            diagnostics.append(
+                Diagnostic(
+                    code="DUPLICATE_NAME",
+                    message=f'Duplicate capability name "{capability.name}".',
+                    path=path,
+                    line=line(index),
+                )
+            )
+        names[name] = index
+
+        if require_parents and capability.parent_id and capability.parent_id not in by_id:
+            diagnostics.append(
+                Diagnostic(
+                    code="VALIDATION_FAILED",
+                    message=(
+                        f'Parent "{capability.parent_id}" for "{capability.name}" '
+                        "does not exist."
+                    ),
+                    path=path,
+                    line=line(index),
+                )
+            )
+
+    for index, capability in enumerate(capabilities):
+        seen: set[str] = set()
+        current: Capability | None = capability
+        while current is not None:
+            if current.id in seen:
+                diagnostics.append(
+                    Diagnostic(
+                        code="CYCLE_DETECTED",
+                        message=(
+                            f'Capability "{capability.name}" participates in a '
+                            "hierarchy cycle."
+                        ),
+                        path=path,
+                        line=line(index),
+                    )
+                )
+                break
+            seen.add(current.id)
+            current = by_id.get(current.parent_id) if current.parent_id else None
+
+    return diagnostics
 
 
 def create_capability(capabilities: list[Capability], input_data: CapabilityCreate) -> Capability:
@@ -198,7 +274,8 @@ def sort_capabilities_depth_first(capabilities: Iterable[Capability]) -> list[Ca
     visit(None)
     for capability in sorted(capabilities, key=lambda c: c.id):
         if capability.id not in visited:
-            result.append(capability)
+            parent_id = capability.parent_id if capability.parent_id in all_ids else None
+            visit(parent_id)
     return result
 
 

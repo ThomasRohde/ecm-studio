@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from ecm_studio.application.services import AppServices
+from ecm_studio.domain.errors import CycleDetected, JsonlParseFailed, ValidationFailed
 from ecm_studio.infrastructure.jsonl import read_raw_jsonl
 
 
@@ -27,6 +30,35 @@ def test_workspace_vertical_slice(tmp_path: Path) -> None:
     reopened = AppServices(settings_path=tmp_path / "settings.json")
     reopened.workspace.open(str(tmp_path))
     assert reopened.capabilities.list_tree()[0]["name"] == "Customer"
+
+
+def test_failed_open_preserves_current_workspace(tmp_path: Path) -> None:
+    services = AppServices(settings_path=tmp_path / "settings.json")
+    good = tmp_path / "good"
+    services.workspace.init(str(good), "Good")
+
+    with pytest.raises(ValidationFailed):
+        services.workspace.open(str(tmp_path / "missing"))
+
+    assert services.workspace.status()["path"] == str(good.resolve())
+
+
+def test_invalid_repository_structure_blocks_tree_and_reports_diagnostics(tmp_path: Path) -> None:
+    services = AppServices(settings_path=tmp_path / "settings.json")
+    services.workspace.init(str(tmp_path), "Invalid Structure")
+    capabilities_file = tmp_path / "ecm" / "capabilities.jsonl"
+    capabilities_file.write_text(
+        '{"_t":"capability","schema_version":"1.0","id":"a","name":"A","parent_id":"b"}\n'
+        '{"_t":"capability","schema_version":"1.0","id":"b","name":"B","parent_id":"a"}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(JsonlParseFailed):
+        services.capabilities.list_tree()
+
+    diagnostics = services.diagnostics.run()
+    assert diagnostics[0]["code"] == "CYCLE_DETECTED"
+    assert diagnostics[0]["path"] == "ecm/capabilities.jsonl"
 
 
 def test_update_from_tree_dto_persists_jsonl_sqlite_and_audit(tmp_path: Path) -> None:
@@ -58,6 +90,43 @@ def test_update_from_tree_dto_persists_jsonl_sqlite_and_audit(tmp_path: Path) ->
     assert update_events
     assert update_events[-1]["capability_id"] == child_from_tree["id"]
     assert update_events[-1]["patch"]["name"] == "Customer Activation"
+
+
+def test_capability_save_validates_update_and_move_before_writing(tmp_path: Path) -> None:
+    services = AppServices(settings_path=tmp_path / "settings.json")
+    services.workspace.init(str(tmp_path), "Atomic Save")
+    root = services.capabilities.create({"name": "Root"})
+    child = services.capabilities.create({"name": "Child", "parent_id": root["id"]})
+    capabilities_file = tmp_path / "ecm" / "capabilities.jsonl"
+    before = capabilities_file.read_text(encoding="utf-8")
+
+    with pytest.raises(CycleDetected):
+        services.capabilities.save(child["id"], {"name": "Renamed Child"}, child["id"])
+
+    assert capabilities_file.read_text(encoding="utf-8") == before
+    assert services.capabilities.get(child["id"])["name"] == "Child"
+
+
+def test_capability_save_persists_metadata_and_move_once(tmp_path: Path) -> None:
+    services = AppServices(settings_path=tmp_path / "settings.json")
+    services.workspace.init(str(tmp_path), "Combined Save")
+    root = services.capabilities.create({"name": "Root"})
+    target = services.capabilities.create({"name": "Target"})
+    child = services.capabilities.create({"name": "Child", "parent_id": root["id"]})
+
+    saved = services.capabilities.save(
+        child["id"],
+        {"name": "Renamed Child", "domain": "Operations"},
+        target["id"],
+    )
+
+    assert saved["name"] == "Renamed Child"
+    assert saved["parent_id"] == target["id"]
+    events = read_raw_jsonl(tmp_path / "ecm" / "capability_versions.jsonl").records
+    combined_events = [
+        event for event in events if event.get("capability_id") == child["id"]
+    ][-2:]
+    assert [event["action"] for event in combined_events] == ["update", "move"]
 
 
 def test_capability_type_is_computed_from_hierarchy(tmp_path: Path) -> None:

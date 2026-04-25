@@ -75,18 +75,33 @@ class WorkspaceService:
         self.settings = settings
 
     def init(self, path: str, name: str) -> dict[str, Any]:
-        workspace = self.context.init_workspace(Path(path), name)
-        GitService(workspace.root).init()
-        rebuild = SQLiteProjection(workspace).rebuild()
+        previous = self.context.workspace
+        try:
+            workspace = self.context.init_workspace(Path(path), name)
+            GitService(workspace.root).init()
+            rebuild = SQLiteProjection(workspace).rebuild()
+        except Exception:
+            self.context.workspace = previous
+            raise
         self.settings.add_recent_workspace(workspace.root)
         return self._dto(workspace, rebuild.to_dict())
 
     def open(self, path: str | None = None) -> dict[str, Any]:
+        previous = self.context.workspace
         if path is None:
             workspace = self.context.require_workspace()
         else:
-            workspace = self.context.open_workspace(Path(path))
+            try:
+                workspace = self.context.open_workspace(Path(path))
+                projection = SQLiteProjection(workspace)
+                rebuild = None
+                if not projection.is_current():
+                    rebuild = projection.rebuild().to_dict()
+            except Exception:
+                self.context.workspace = previous
+                raise
             self.settings.add_recent_workspace(workspace.root)
+            return self._dto(workspace, rebuild)
         projection = SQLiteProjection(workspace)
         rebuild = None
         if not projection.is_current():
@@ -202,6 +217,67 @@ class CapabilityService:
         )
         return capability_dto(moved)
 
+    def save(
+        self,
+        capability_id: str,
+        patch_data: dict[str, Any],
+        new_parent_id: str | None,
+        order: int | None = None,
+    ) -> dict[str, Any]:
+        sanitized = _sanitize_capability_patch(patch_data)
+        try:
+            patch = CapabilityPatch.model_validate(sanitized)
+        except ValidationError as exc:
+            raise ValidationFailed("Invalid capability patch input.", exc.errors()) from exc
+
+        capabilities = self._load()
+        before = get_capability(capabilities, capability_id)
+        patch_payload = patch.model_dump(exclude_unset=True, mode="json")
+        metadata_changed = _patch_has_changes(before, patch_payload)
+        parent_changed = before.parent_id != new_parent_id
+        order_changed = order is not None and before.order != order
+        if not metadata_changed and not parent_changed and not order_changed:
+            return capability_dto(before)
+
+        working = capabilities
+        updated = before
+        events: list[CapabilityEvent] = []
+
+        if metadata_changed:
+            updated = update_capability(working, capability_id, patch)
+            working = with_computed_types(replace_capability(working, updated))
+            updated = get_capability(working, capability_id)
+            events.append(
+                CapabilityEvent(
+                    capability_id=updated.id,
+                    action="update",
+                    summary=f'Updated capability "{updated.name}".',
+                    before=before.durable_dict(),
+                    after=updated.durable_dict(),
+                    patch=patch_payload,
+                )
+            )
+
+        final = updated
+        if parent_changed or order_changed:
+            move_before = updated
+            working, moved = move_capability(working, capability_id, new_parent_id, order)
+            working = with_computed_types(working)
+            final = get_capability(working, moved.id)
+            events.append(
+                CapabilityEvent(
+                    capability_id=final.id,
+                    action="move",
+                    summary=f'Moved capability "{final.name}".',
+                    before=move_before.durable_dict(),
+                    after=final.durable_dict(),
+                    patch={"parent_id": new_parent_id, "order": final.order},
+                )
+            )
+
+        self._save_and_rebuild(working, events)
+        return capability_dto(final)
+
     def export(self, format_name: str) -> dict[str, Any]:
         workspace = self.context.require_workspace()
         capabilities = self._load()
@@ -222,14 +298,17 @@ class CapabilityService:
         return capabilities
 
     def _save_and_rebuild(
-        self, capabilities: list[Capability], event: CapabilityEvent | None = None
+        self,
+        capabilities: list[Capability],
+        event: CapabilityEvent | list[CapabilityEvent] | None = None,
     ) -> None:
         workspace = self.context.require_workspace()
         CapabilityRepository(workspace.paths.capabilities_file).save(capabilities)
         if event is not None:
-            EventRepository(workspace.paths.resolve(CAPABILITY_VERSIONS_FILE)).append_capability_event(
-                event
-            )
+            event_repo = EventRepository(workspace.paths.resolve(CAPABILITY_VERSIONS_FILE))
+            events = event if isinstance(event, list) else [event]
+            for item in events:
+                event_repo.append_capability_event(item)
         SQLiteProjection(workspace).rebuild()
 
 
@@ -381,8 +460,9 @@ class DiagnosticsService:
             for error in errors:
                 diagnostics.append(
                     Diagnostic(
-                        code="JSONL_PARSE_FAILED",
+                        code=error.get("code", "JSONL_PARSE_FAILED"),
                         message=error["message"],
+                        severity=error.get("severity", "error"),
                         path="ecm/capabilities.jsonl",
                         line=error["line"],
                     )
@@ -392,8 +472,9 @@ class DiagnosticsService:
             for error in event_result.errors:
                 diagnostics.append(
                     Diagnostic(
-                        code="JSONL_PARSE_FAILED",
+                        code=error.code,
                         message=error.message,
+                        severity=error.severity,
                         path=relative,
                         line=error.line,
                     )
@@ -485,6 +566,10 @@ def _sanitize_capability_patch(patch_data: dict[str, Any]) -> dict[str, Any]:
         for key, value in patch_data.items()
         if key in allowed and (value is not None or key in {"effective_from", "effective_to"})
     }
+
+
+def _patch_has_changes(capability: Capability, patch: dict[str, Any]) -> bool:
+    return any(getattr(capability, key) != value for key, value in patch.items())
 
 
 def _audit_sort_key(item: dict[str, Any]) -> str:

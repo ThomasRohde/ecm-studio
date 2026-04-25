@@ -321,12 +321,11 @@ export function InspectorPanel() {
     try {
       const metadataChanged = capabilityPatchChanged(draft, selected);
       const parentChanged = draft.parent_id !== (selected?.parent_id ?? null);
-      const updated = metadataChanged
-        ? await api.capabilities.update(draft.id, capabilityPatch(draft))
-        : (selected ?? draft);
-      const final = parentChanged
-        ? await api.capabilities.move(draft.id, draft.parent_id)
-        : updated;
+      if (!metadataChanged && !parentChanged) {
+        setError(null);
+        return;
+      }
+      const final = await api.capabilities.save(draft.id, capabilityPatch(draft), draft.parent_id);
       const nextTree = await api.capabilities.listTree();
       setTree(nextTree);
       setSelected(flattenCapabilities(nextTree).find((capability) => capability.id === final.id) ?? final);

@@ -11,7 +11,7 @@ from ecm_studio.domain.capabilities import (
     update_capability,
 )
 from ecm_studio.domain.errors import CycleDetected, DuplicateName
-from ecm_studio.domain.models import CapabilityCreate, CapabilityPatch
+from ecm_studio.domain.models import Capability, CapabilityCreate, CapabilityPatch
 
 
 def test_create_update_and_tree() -> None:
@@ -51,6 +51,16 @@ def test_move_cycle_is_rejected() -> None:
 
     with pytest.raises(CycleDetected):
         move_capability(capabilities, root.id, child.id)
+
+
+def test_disconnected_cycle_is_rejected_when_building_tree() -> None:
+    capabilities = [
+        Capability(id="a", name="A", parent_id="b"),
+        Capability(id="b", name="B", parent_id="a"),
+    ]
+
+    with pytest.raises(CycleDetected):
+        build_tree(capabilities)
 
 
 def test_move_reorders_within_same_parent_and_normalizes_orders() -> None:

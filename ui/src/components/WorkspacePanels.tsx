@@ -148,6 +148,10 @@ export function ImportExportPanel() {
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [exportPath, setExportPath] = useState<string | null>(null);
 
+  useEffect(() => {
+    setPreview(null);
+  }, [mode, workspace?.path]);
+
   async function refreshAfterModelChange() {
     const state = await refreshModelState();
     setWorkspace(state.workspace);
@@ -168,7 +172,7 @@ export function ImportExportPanel() {
   async function applyImport() {
     if (!preview) return;
     try {
-      const result = await api.models.importApply(preview.source_path, mode);
+      const result = await api.models.importApply(preview.source_path, preview.mode);
       setPreview(result);
       await refreshAfterModelChange();
     } catch (error) {
@@ -209,7 +213,7 @@ export function ImportExportPanel() {
           <option value="validate_only">Validate only</option>
         </select>
         <Button disabled={!workspace} onClick={() => void previewImport()}>Choose File + Preview</Button>
-        <Button disabled={!preview || preview.invalid > 0 || mode === 'validate_only'} onClick={() => void applyImport()}>
+        <Button disabled={!canApplyImportPreview(preview)} onClick={() => void applyImport()}>
           Apply Import
         </Button>
       </div>
@@ -237,6 +241,10 @@ export function ImportExportPanel() {
       ) : null}
     </section>
   );
+}
+
+export function canApplyImportPreview(preview: ImportPreview | null): boolean {
+  return Boolean(preview && preview.invalid === 0 && preview.mode !== 'validate_only');
 }
 
 export function GitPanel() {
