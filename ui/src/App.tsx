@@ -3,12 +3,15 @@ import { FluentProvider, webDarkTheme, webLightTheme } from '@fluentui/react-com
 import { StudioLayout } from './components/StudioLayout';
 import { StatusBar } from './components/StatusBar';
 import { AppMenu } from './components/AppMenu';
+import { GitBadges } from './components/GitBadges';
+import { useAppStore } from './store/app-store';
 import { applyTheme, useSettingsStore } from './store/settings-store';
 
 export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const settings = useSettingsStore((state) => state.settings);
   const loadSettings = useSettingsStore((state) => state.load);
+  const gitStatus = useAppStore((state) => state.gitStatus);
   const fluentTheme = settings.resolved_theme === 'dark' ? webDarkTheme : webLightTheme;
 
   useEffect(() => {
@@ -37,6 +40,7 @@ export function App() {
             <strong>ECM Studio</strong>
             <span>Desktop Git/JSONL capability management</span>
           </div>
+          <GitBadges status={gitStatus} compact />
           <img alt="" aria-hidden="true" className="app-logo" src="./brand/ecm-studio-logo.svg" />
         </header>
         <section className="studio-area"><StudioLayout /></section>

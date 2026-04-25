@@ -135,6 +135,10 @@ class BridgeApi:
         return self._services.git.history(limit)
 
     @envelope
+    def git_graph(self, limit: int = 50) -> dict[str, Any]:
+        return self._services.git.graph(limit)
+
+    @envelope
     def git_compare(self, from_ref: str, to_ref: str) -> dict[str, Any]:
         return self._services.git.compare(from_ref, to_ref)
 

@@ -168,6 +168,58 @@ class GitService:
                 )
         return checkpoints
 
+    def graph(self, limit: int = 50) -> dict:
+        normalized_limit = max(1, min(limit, 500))
+        if not self.is_repo():
+            return {
+                "commits": [],
+                "current_branch": None,
+                "limit": normalized_limit,
+                "truncated": False,
+            }
+
+        result = self._run_git(
+            "log",
+            "--all",
+            f"--max-count={normalized_limit + 1}",
+            "--pretty=format:%H%x00%P%x00%an%x00%ae%x00%at%x00%s%x00%b%x00",
+            check=False,
+        )
+        if result.returncode != 0 or not result.stdout.strip("\x00\r\n"):
+            return {
+                "commits": [],
+                "current_branch": self.current_branch(),
+                "limit": normalized_limit,
+                "truncated": False,
+            }
+
+        parsed_commits = self._parse_graph_log(result.stdout)
+        clipped = len(parsed_commits) > normalized_limit
+        visible_commits = parsed_commits[:normalized_limit]
+        visible_hashes = {commit["hash"] for commit in visible_commits}
+        refs_by_commit = self._local_refs_by_commit()
+        truncated = clipped
+
+        commits = []
+        for commit in visible_commits:
+            visible_parents = [parent for parent in commit["parents"] if parent in visible_hashes]
+            if len(visible_parents) != len(commit["parents"]):
+                truncated = True
+            commits.append(
+                {
+                    **commit,
+                    "parents": visible_parents,
+                    "refs": refs_by_commit.get(commit["hash"], []),
+                }
+            )
+
+        return {
+            "commits": commits,
+            "current_branch": self.current_branch(),
+            "limit": normalized_limit,
+            "truncated": truncated,
+        }
+
     def compare(self, from_ref: str, to_ref: str) -> dict:
         self._require_repo()
         summary = self._git("diff", "--numstat", from_ref, to_ref).stdout
@@ -264,6 +316,69 @@ class GitService:
         history = self.history(1)
         return history[0] if history else None
 
+    def _parse_graph_log(self, output: str) -> list[dict]:
+        fields = output.split("\x00")
+        if fields and fields[-1] == "":
+            fields.pop()
+
+        commits: list[dict] = []
+        field_count = 7
+        for index in range(0, len(fields), field_count):
+            chunk = fields[index : index + field_count]
+            if len(chunk) != field_count:
+                continue
+            commit_hash, parents, author_name, author_email, timestamp, subject, body = chunk
+            commit_hash = commit_hash.strip()
+            if not commit_hash:
+                continue
+            commits.append(
+                {
+                    "hash": commit_hash,
+                    "parents": [parent for parent in parents.split() if parent],
+                    "subject": subject,
+                    "body": body.strip(),
+                    "author": {
+                        "name": author_name,
+                        "email": author_email,
+                        "timestamp": _safe_int(timestamp),
+                    },
+                }
+            )
+        return commits
+
+    def _local_refs_by_commit(self) -> dict[str, list[str]]:
+        result = self._run_git(
+            "for-each-ref",
+            "--format=%(objectname)%00%(*objectname)%00%(refname:short)%00%(refname)%00",
+            "refs/heads",
+            "refs/tags",
+            check=False,
+        )
+        if result.returncode != 0:
+            return {}
+
+        refs_by_commit: dict[str, list[str]] = {}
+        fields = result.stdout.split("\x00")
+        if fields and fields[-1] == "":
+            fields.pop()
+        for index in range(0, len(fields), 4):
+            chunk = fields[index : index + 4]
+            if len(chunk) != 4:
+                continue
+            object_hash, peeled_hash, short_name, full_name = chunk
+            object_hash = object_hash.strip()
+            peeled_hash = peeled_hash.strip()
+            short_name = short_name.strip()
+            full_name = full_name.strip()
+            commit_hash = peeled_hash or object_hash
+            if not commit_hash or not short_name:
+                continue
+            ref_name = f"tag: {short_name}" if full_name.startswith("refs/tags/") else short_name
+            refs_by_commit.setdefault(commit_hash, []).append(ref_name)
+        for refs in refs_by_commit.values():
+            refs.sort(key=lambda ref: (ref.startswith("tag: "), ref))
+        return refs_by_commit
+
     def _require_repo(self) -> None:
         if not self.is_repo():
             raise AppError("GIT_NOT_INITIALIZED", "Workspace is not a Git repository.")
@@ -331,3 +446,10 @@ class GitService:
                 "GIT_FAILED", result.stderr.strip() or result.stdout.strip(), {"args": args}
             )
         return result
+
+
+def _safe_int(value: str) -> int:
+    try:
+        return int(value)
+    except ValueError:
+        return 0

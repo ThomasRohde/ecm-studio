@@ -26,6 +26,28 @@ export interface GitStatus {
   merge_in_progress: boolean;
 }
 
+export interface GitGraphAuthor {
+  name: string;
+  email: string;
+  timestamp: number;
+}
+
+export interface GitGraphCommit {
+  hash: string;
+  parents: string[];
+  subject: string;
+  body: string;
+  author: GitGraphAuthor;
+  refs: string[];
+}
+
+export interface GitGraphData {
+  commits: GitGraphCommit[];
+  current_branch?: string | null;
+  limit: number;
+  truncated: boolean;
+}
+
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
 

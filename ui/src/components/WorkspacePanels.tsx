@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Button, Input, Text } from '@fluentui/react-components';
+import { Gitgraph, MergeStyle, Mode, Orientation, TemplateName, templateExtend } from '@gitgraph/react';
 import { api } from '../api/bridge';
-import type { AuditEvent, Checkpoint, ImportMode, ImportPreview, ModelFormat } from '../api/types';
+import type { AuditEvent, Checkpoint, GitGraphData, ImportMode, ImportPreview, ModelFormat } from '../api/types';
 import { useAppStore } from '../store/app-store';
 import { useSettingsStore } from '../store/settings-store';
+import { GitBadges } from './GitBadges';
 
 async function refreshModelState() {
   return {
@@ -253,15 +255,23 @@ export function GitPanel() {
   const setError = useAppStore((s) => s.setError);
   const [message, setMessage] = useState('ECM checkpoint');
   const [branchName, setBranchName] = useState('work/new-capability-model');
-  const [selectedBranch, setSelectedBranch] = useState('');
+  const [contextBranch, setContextBranch] = useState('');
+  const [integrationBranch, setIntegrationBranch] = useState('');
   const [history, setHistory] = useState<Checkpoint[]>([]);
+  const [graph, setGraph] = useState<GitGraphData | null>(null);
 
   async function refresh() {
     try {
-      const status = await api.git.status();
+      const [status, nextHistory, nextGraph] = await Promise.all([
+        api.git.status(),
+        api.git.history(),
+        api.git.graph(),
+      ]);
       setGitStatus(status);
-      setSelectedBranch((current) => current || status.branches.find((branch) => branch !== status.branch) || status.branch || '');
-      setHistory(await api.git.history());
+      setContextBranch((current) => validBranchOrFallback(current, status.branches, status.branch));
+      setIntegrationBranch((current) => validIntegrationBranchOrFallback(current, status.branches, status.branch));
+      setHistory(nextHistory);
+      setGraph(nextGraph);
     } catch (error) {
       setError(String(error));
     }
@@ -287,68 +297,170 @@ export function GitPanel() {
   const isRepo = gitStatus?.is_repo ?? false;
   const mergeInProgress = gitStatus?.merge_in_progress ?? false;
   const canRisk = isRepo && clean && !mergeInProgress;
+  const otherBranches = branches.filter((branch) => branch !== gitStatus?.branch);
+  const pendingCount = (gitStatus?.changed_files?.length ?? 0) + (gitStatus?.untracked_files?.length ?? 0);
+  const remoteLabel = gitStatus?.has_remote ? gitStatus.upstream ?? 'Remote configured' : 'Local workspace only';
 
   return (
     <section className="panel stack">
-      <Text weight="semibold">Git Workflows</Text>
-      <div className="kv">
-        <Text>Repo: {isRepo ? 'yes' : 'no'}</Text>
-        <Text>Branch: {gitStatus?.branch ?? 'n/a'}</Text>
-        <Text>State: {clean ? 'clean' : 'dirty - checkpoint before branch, sync, or merge'}</Text>
-        <Text>Remote: {gitStatus?.has_remote ? gitStatus.upstream ?? 'configured' : 'local repo only'}</Text>
-        <Text>Ahead/behind: {gitStatus?.ahead ?? 0}/{gitStatus?.behind ?? 0}</Text>
-        <Text>Changed: {gitStatus?.changed_files?.length ?? 0}; Untracked: {gitStatus?.untracked_files?.length ?? 0}</Text>
+      <div className="git-panel-header">
+        <div>
+          <Text weight="semibold">Scenario History</Text>
+          <Text size={200}>Checkpoints, scenarios, publishing, and integration.</Text>
+        </div>
+        <Button onClick={() => void refresh()}>Refresh</Button>
       </div>
+      <GitBadges status={gitStatus} />
 
       {mergeInProgress ? (
-        <div className="card error">
-          <Text weight="semibold">Merge conflict detected</Text>
+        <div className="card error workflow-card">
+          <Text weight="semibold">Integration conflict detected</Text>
+          <Text size={200}>Abort the integration before changing context or publishing.</Text>
           {(gitStatus?.conflicted_files ?? []).map((file) => <Text key={file}>{file}</Text>)}
-          <Button appearance="primary" onClick={() => void run(() => api.git.abortMerge())}>Abort Merge</Button>
+          <Button appearance="primary" onClick={() => void run(() => api.git.abortMerge())}>Abort Integration</Button>
         </div>
       ) : null}
 
-      <div className="toolbar">
-        <Input value={message} onChange={(_, d) => setMessage(d.value)} />
-        <Button disabled={!isRepo} appearance="primary" onClick={() => void checkpoint()}>Checkpoint</Button>
-        <Button onClick={() => void refresh()}>Refresh</Button>
-      </div>
-
       <div className="workflow-grid">
-        <div className="card">
-          <Text weight="semibold">Start New Work</Text>
-          <Input value={branchName} onChange={(_, d) => setBranchName(d.value)} />
-          <Button disabled={!canRisk} onClick={() => void run(() => api.git.createBranch(branchName))}>Create + Switch Branch</Button>
+        <div className="card workflow-card">
+          <Text weight="semibold">Checkpoint</Text>
+          <Text size={200}>{pendingCount ? `${pendingCount} pending file changes.` : 'No pending file changes.'}</Text>
+          <Input value={message} onChange={(_, d) => setMessage(d.value)} aria-label="Checkpoint message" />
+          <Button disabled={!isRepo || mergeInProgress} appearance="primary" onClick={() => void checkpoint()}>
+            Create Checkpoint
+          </Button>
         </div>
-        <div className="card">
-          <Text weight="semibold">Switch / Merge</Text>
-          <select className="select" value={selectedBranch} onChange={(event) => setSelectedBranch(event.target.value)}>
+
+        <div className="card workflow-card">
+          <Text weight="semibold">New Scenario</Text>
+          <Text size={200}>Starts from {gitStatus?.branch ?? 'the current context'}.</Text>
+          <Input value={branchName} onChange={(_, d) => setBranchName(d.value)} aria-label="Scenario name" />
+          <Button disabled={!canRisk} onClick={() => void run(() => api.git.createBranch(branchName))}>
+            Create Scenario
+          </Button>
+        </div>
+
+        <div className="card workflow-card">
+          <Text weight="semibold">Change Context</Text>
+          <Text size={200}>Open another scenario for editing.</Text>
+          <select className="select" value={contextBranch} onChange={(event) => setContextBranch(event.target.value)}>
             {branches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
           </select>
-          <div className="toolbar">
-            <Button disabled={!canRisk || !selectedBranch} onClick={() => void run(() => api.git.switchBranch(selectedBranch))}>Switch</Button>
-            <Button disabled={!canRisk || !selectedBranch || selectedBranch === gitStatus?.branch} onClick={() => void run(() => api.git.mergeBranch(selectedBranch))}>Merge Into Current</Button>
-          </div>
+          <Button disabled={!canRisk || !contextBranch || contextBranch === gitStatus?.branch} onClick={() => void run(() => api.git.switchBranch(contextBranch))}>
+            Change Context
+          </Button>
         </div>
-        <div className="card">
-          <Text weight="semibold">Sync Remote</Text>
-          <Text size={200}>{gitStatus?.has_remote ? 'Remote is configured.' : 'No remote configured; local Git only.'}</Text>
+
+        <div className="card workflow-card">
+          <Text weight="semibold">Integrate Scenario</Text>
+          <Text size={200}>Bring another scenario into {gitStatus?.branch ?? 'the current context'}.</Text>
+          <select className="select" value={integrationBranch} onChange={(event) => setIntegrationBranch(event.target.value)}>
+            {otherBranches.length ? otherBranches.map((branch) => <option key={branch} value={branch}>{branch}</option>) : <option value="">No other scenarios</option>}
+          </select>
+          <Button disabled={!canRisk || !integrationBranch} onClick={() => void run(() => api.git.mergeBranch(integrationBranch))}>
+            Integrate Into Current
+          </Button>
+        </div>
+
+        <div className="card workflow-card">
+          <Text weight="semibold">Publish</Text>
+          <Text size={200}>{remoteLabel}</Text>
+          <Text size={200}>Outgoing {gitStatus?.ahead ?? 0}; incoming {gitStatus?.behind ?? 0}</Text>
           <div className="toolbar">
-            <Button disabled={!canRisk || !gitStatus?.has_remote} onClick={() => void run(() => api.git.pull())}>Sync</Button>
-            <Button disabled={!isRepo || !gitStatus?.has_remote} onClick={() => void run(() => api.git.push())}>Publish</Button>
+            <Button disabled={!canRisk || !gitStatus?.has_remote} onClick={() => void run(() => api.git.pull())}>
+              Receive Updates
+            </Button>
+            <Button disabled={!canRisk || !gitStatus?.has_remote} onClick={() => void run(() => api.git.push())}>
+              Publish Checkpoints
+            </Button>
           </div>
         </div>
       </div>
 
-      <div className="list">
-        {history.map((item) => (
-          <div key={item.id || item.message} className="card">
-            <Text weight="semibold">{item.message}</Text>
-            <Text size={200}>{item.id.slice(0, 10)} {item.timestamp}</Text>
-          </div>
-        ))}
-      </div>
+      <GitGraphView graph={graph} />
+
+      <details className="checkpoint-expander">
+        <summary>
+          <Text weight="semibold">Recent Checkpoints</Text>
+          <span className="audit-pill">{history.length}</span>
+        </summary>
+        <div className="list">
+          {history.map((item) => (
+            <div key={item.id || item.message} className="card">
+              <Text weight="semibold">{item.message}</Text>
+              <Text size={200}>{item.id.slice(0, 10)} {item.timestamp}</Text>
+            </div>
+          ))}
+          {history.length === 0 ? <Text size={200}>No checkpoints yet.</Text> : null}
+        </div>
+      </details>
     </section>
+  );
+}
+
+function validBranchOrFallback(current: string, branches: string[], activeBranch?: string | null) {
+  if (current && branches.includes(current)) return current;
+  return activeBranch || branches[0] || '';
+}
+
+function validIntegrationBranchOrFallback(current: string, branches: string[], activeBranch?: string | null) {
+  const otherBranches = branches.filter((branch) => branch !== activeBranch);
+  if (current && otherBranches.includes(current)) return current;
+  return otherBranches[0] || '';
+}
+
+const gitGraphTemplate = templateExtend(TemplateName.Metro, {
+  colors: ['#25636d', '#7a4f9e', '#b85c00', '#4b7f52', '#9b5c64', '#5579a6'],
+  branch: {
+    lineWidth: 3,
+    mergeStyle: MergeStyle.Straight,
+    spacing: 42,
+    label: {
+      display: true,
+      font: 'normal 10pt Segoe UI',
+    },
+  },
+  commit: {
+    spacing: 40,
+    dot: {
+      size: 7,
+    },
+    message: {
+      displayHash: false,
+      displayAuthor: false,
+      font: 'normal 10pt Segoe UI',
+    },
+  },
+});
+
+function GitGraphView({ graph }: { graph: GitGraphData | null }) {
+  const graphKey = graph?.commits.map((commit) => commit.hash).join(':') || 'empty';
+
+  return (
+    <div className="card git-graph-card">
+      <div className="git-graph-header">
+        <Text weight="semibold">Recent History</Text>
+        {graph?.truncated ? <span className="audit-pill">Limited to {graph.limit}</span> : null}
+      </div>
+      {graph && graph.commits.length > 0 ? (
+        <div className="git-graph-scroll">
+          <Gitgraph
+            key={graphKey}
+            options={{
+              mode: Mode.Compact,
+              orientation: Orientation.VerticalReverse,
+              template: gitGraphTemplate,
+            }}
+          >
+            {(gitgraph) => {
+              gitgraph.import(graph.commits);
+            }}
+          </Gitgraph>
+        </div>
+      ) : (
+        <Text size={200}>No graph history yet.</Text>
+      )}
+    </div>
   );
 }
 

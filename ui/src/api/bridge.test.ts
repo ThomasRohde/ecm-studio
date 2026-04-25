@@ -24,7 +24,9 @@ describe('bridge mock fallback', () => {
     const exportResult = await api.models.export('json_bundle');
     const preview = await api.models.importPreview(null, 'append');
     const branch = await api.git.createBranch('work/mock');
+    const checkpoint = await api.git.checkpoint('Graph checkpoint');
     const status = await api.git.status();
+    const graph = await api.git.graph();
 
     expect(settings.resolved_theme).toBe('dark');
     expect(workspace?.name).toBe('Picked');
@@ -32,6 +34,9 @@ describe('bridge mock fallback', () => {
     expect(preview?.invalid).toBe(0);
     expect(branch.branch).toBe('work/mock');
     expect(status.branch).toBe('work/mock');
+    expect(graph.current_branch).toBe('work/mock');
+    expect(graph.commits[0].hash).toBe(checkpoint.id);
+    expect(graph.commits[0].refs).toContain('work/mock');
   });
 
   it('normalizes order when mock capabilities move through the bridge', async () => {

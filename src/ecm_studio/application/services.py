@@ -400,6 +400,9 @@ class GitAppService:
             for item in GitService(self.context.require_workspace().root).history(limit)
         ]
 
+    def graph(self, limit: int = 50) -> dict[str, Any]:
+        return GitService(self.context.require_workspace().root).graph(limit)
+
     def compare(self, from_ref: str, to_ref: str) -> dict[str, Any]:
         return GitService(self.context.require_workspace().root).compare(from_ref, to_ref)
 

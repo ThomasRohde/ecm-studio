@@ -7,6 +7,8 @@ import type {
   Diagnostic,
   Envelope,
   ExportResult,
+  GitGraphCommit,
+  GitGraphData,
   GitStatus,
   ImportMode,
   ImportPreview,
@@ -43,6 +45,7 @@ const mockState: {
   workspace: Workspace | null;
   capabilities: Capability[];
   checkpoints: Checkpoint[];
+  graphCommits: GitGraphCommit[];
   settings: AppSettings;
   git: GitStatus;
   audit: AuditEvent[];
@@ -50,6 +53,7 @@ const mockState: {
   workspace: null,
   capabilities: [],
   checkpoints: [],
+  graphCommits: [],
   settings: {
     schema_version: '1.0',
     theme_mode: 'system',
@@ -230,6 +234,8 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
   if (method === 'git_create_branch') {
     const branch = String(args[0] || 'work/new-branch');
     if (!mockState.git.branches.includes(branch)) mockState.git.branches.push(branch);
+    const sourceHead = headForBranch(mockState.git.branch);
+    if (sourceHead) addBranchRef(branch, sourceHead);
     mockState.git.branch = branch;
     return { branch, current_branch: branch } as T;
   }
@@ -237,7 +243,11 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
     mockState.git.branch = String(args[0]);
     return { branch: mockState.git.branch } as T;
   }
-  if (method === 'git_merge_branch') return { merged: true, source_branch: String(args[0]), target_branch: mockState.git.branch } as T;
+  if (method === 'git_merge_branch') {
+    const sourceBranch = String(args[0]);
+    addMockGraphCommit(`Integrate ${sourceBranch}`, [headForBranch(mockState.git.branch), headForBranch(sourceBranch)].filter(Boolean) as string[]);
+    return { merged: true, source_branch: sourceBranch, target_branch: mockState.git.branch } as T;
+  }
   if (method === 'git_abort_merge') {
     mockState.git.merge_in_progress = false;
     mockState.git.conflicted_files = [];
@@ -246,9 +256,11 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
   if (method === 'git_pull') return { pulled: true, remote: 'origin', branch: mockState.git.branch } as T;
   if (method === 'git_push') return { pushed: true, remote: 'origin', branch: mockState.git.branch } as T;
   if (method === 'git_history') return mockState.checkpoints as T;
+  if (method === 'git_graph') return mockGitGraph(Number(args[0] || 50)) as T;
   if (method === 'git_checkpoint') {
     const checkpoint = { id: crypto.randomUUID(), message: String(args[0]), timestamp: new Date().toISOString(), author: 'Mock', skipped: false };
     mockState.checkpoints.unshift(checkpoint);
+    addMockGraphCommit(checkpoint.message, [headForBranch(mockState.git.branch)].filter(Boolean) as string[], checkpoint.id);
     return checkpoint as T;
   }
   if (method === 'diagnostics_run') return [] as T;
@@ -336,6 +348,57 @@ function applyComputedCapabilityTypes() {
   }
 }
 
+function mockGitGraph(limit: number): GitGraphData {
+  const normalizedLimit = Math.max(1, Math.min(limit, 500));
+  const visible = mockState.graphCommits.slice(0, normalizedLimit);
+  const visibleHashes = new Set(visible.map((commit) => commit.hash));
+  const commits = visible.map((commit) => ({
+    ...commit,
+    parents: commit.parents.filter((parent) => visibleHashes.has(parent)),
+    refs: [...commit.refs],
+  }));
+  return {
+    commits,
+    current_branch: mockState.git.branch,
+    limit: normalizedLimit,
+    truncated: mockState.graphCommits.length > normalizedLimit,
+  };
+}
+
+function addMockGraphCommit(subject: string, parents: string[] = [], hash = crypto.randomUUID()) {
+  const branch = mockState.git.branch ?? 'main';
+  removeBranchRef(branch);
+  mockState.graphCommits.unshift({
+    hash,
+    parents,
+    subject,
+    body: '',
+    author: {
+      name: 'Mock',
+      email: 'mock@example.local',
+      timestamp: Math.floor(Date.now() / 1000),
+    },
+    refs: [branch],
+  });
+}
+
+function headForBranch(branch?: string | null): string | null {
+  if (!branch) return null;
+  return mockState.graphCommits.find((commit) => commit.refs.includes(branch))?.hash ?? null;
+}
+
+function addBranchRef(branch: string, hash: string) {
+  const commit = mockState.graphCommits.find((item) => item.hash === hash);
+  if (!commit || commit.refs.includes(branch)) return;
+  commit.refs.push(branch);
+}
+
+function removeBranchRef(branch: string) {
+  for (const commit of mockState.graphCommits) {
+    commit.refs = commit.refs.filter((ref) => ref !== branch);
+  }
+}
+
 export const api = {
   settings: {
     get: () => call<AppSettings>('settings_get'),
@@ -370,6 +433,7 @@ export const api = {
     status: () => call<GitStatus>('git_status'),
     checkpoint: (message: string) => call<Checkpoint>('git_checkpoint', message),
     history: (limit = 50) => call<Checkpoint[]>('git_history', limit),
+    graph: (limit = 50) => call<GitGraphData>('git_graph', limit),
     compare: (from: string, to: string) => call<unknown>('git_compare', from, to),
     listBranches: () => call<string[]>('git_list_branches'),
     createBranch: (name: string) => call<{ branch: string; current_branch: string | null }>('git_create_branch', name),

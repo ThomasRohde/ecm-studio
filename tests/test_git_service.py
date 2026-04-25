@@ -123,3 +123,65 @@ def test_git_push_requires_remote_and_pushes_when_configured(tmp_path: Path) -> 
 
     assert result["pushed"] is True
     assert git.status()["has_remote"] is True
+
+
+def test_git_graph_includes_local_branches_tags_and_merge_parents(tmp_path: Path) -> None:
+    workspace = WorkspaceRepository(tmp_path)
+    workspace.init("Graph")
+    git = GitService(tmp_path)
+    git.init()
+    initial = git.checkpoint("Initial")
+    base_branch = git.current_branch() or "master"
+
+    git.create_branch("work/scenario")
+    (tmp_path / "ecm" / "capability_versions.jsonl").write_text("feature\n", encoding="utf-8")
+    feature = git.checkpoint("Feature scenario")
+
+    git.switch_branch(base_branch)
+    (tmp_path / "ecm" / "model_versions.jsonl").write_text("base\n", encoding="utf-8")
+    git.checkpoint("Base update")
+    merge = git.merge_branch("work/scenario")
+    git.tag_release("v1.0", "Release v1.0")
+
+    graph = git.graph()
+
+    commits = graph["commits"]
+    commit_hashes = {commit["hash"] for commit in commits}
+    merge_commit = commits[0]
+    refs = {commit["hash"]: commit["refs"] for commit in commits}
+
+    assert graph["current_branch"] == base_branch
+    assert graph["truncated"] is False
+    assert merge["target_branch"] == base_branch
+    assert merge_commit["hash"] in commit_hashes
+    assert len(merge_commit["parents"]) == 2
+    assert initial.id in commit_hashes
+    assert feature.id in commit_hashes
+    assert base_branch in refs[merge_commit["hash"]]
+    assert "tag: v1.0" in refs[merge_commit["hash"]]
+    assert "work/scenario" in refs[feature.id]
+    assert all(
+        parent in commit_hashes for commit in commits for parent in commit["parents"]
+    )
+
+
+def test_git_graph_limit_filters_hidden_parents_and_marks_truncated(tmp_path: Path) -> None:
+    workspace = WorkspaceRepository(tmp_path)
+    workspace.init("Graph Limit")
+    git = GitService(tmp_path)
+    git.init()
+
+    capabilities = tmp_path / "ecm" / "capabilities.jsonl"
+    for index in range(4):
+        capabilities.write_text(f"commit {index}\n", encoding="utf-8")
+        git.checkpoint(f"Checkpoint {index}")
+
+    graph = git.graph(limit=2)
+    commit_hashes = {commit["hash"] for commit in graph["commits"]}
+
+    assert graph["limit"] == 2
+    assert graph["truncated"] is True
+    assert len(graph["commits"]) == 2
+    assert all(
+        parent in commit_hashes for commit in graph["commits"] for parent in commit["parents"]
+    )
