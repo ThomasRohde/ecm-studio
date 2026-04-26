@@ -5,6 +5,11 @@ import { notify, errorMessage } from '../notifications/notify';
 import { useAppStore } from '../store/app-store';
 import { PANEL_DEFS, type PanelGroup, useLayoutStore } from '../store/layout-store';
 import { useSettingsStore } from '../store/settings-store';
+import {
+  runWorkspaceRefreshTask,
+  workspaceDetails,
+  workspaceRefreshTaskOptions,
+} from '../workspace/workspace-refresh';
 
 interface AppMenuProps {
   open: boolean;
@@ -17,7 +22,6 @@ export function AppMenu({ open, onClose }: AppMenuProps) {
   const openPanel = useLayoutStore((state) => state.openPanel);
   const resetLayout = useLayoutStore((state) => state.resetLayout);
   const openPanelIds = useLayoutStore((state) => state.openPanelIds);
-  const setWorkspace = useAppStore((state) => state.setWorkspace);
   const setDiagnostics = useAppStore((state) => state.setDiagnostics);
   const workspace = useAppStore((state) => state.workspace);
   const settings = useSettingsStore((state) => state.settings);
@@ -27,8 +31,10 @@ export function AppMenu({ open, onClose }: AppMenuProps) {
 
   async function rebuildIndex() {
     try {
-      await api.workspace.rebuildIndex();
-      setWorkspace(await api.workspace.status());
+      await runWorkspaceRefreshTask(
+        async () => api.workspace.rebuildIndex(),
+        workspaceRefreshTaskOptions('rebuild', workspaceDetails(workspace?.path)),
+      );
       notify.success({
         intent: 'workspace.index.rebuilt',
         title: 'Index rebuilt',

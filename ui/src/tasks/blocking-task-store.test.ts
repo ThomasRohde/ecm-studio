@@ -66,6 +66,34 @@ describe('blocking task service', () => {
     vi.useRealTimers();
   });
 
+  it('lets manual operations report actual progress steps', async () => {
+    let continueTask: () => void = () => {};
+    const promise = blockingTask.run(
+      async (controller) => {
+        controller.setStep('Loading capability tree');
+        await new Promise<void>((resolve) => { continueTask = resolve; });
+        controller.setStep('Running diagnostics');
+        return 'refreshed';
+      },
+      {
+        title: 'Opening workspace',
+        message: 'Refreshing views.',
+        steps: ['Opening workspace', 'Loading capability tree', 'Running diagnostics'],
+        progressMode: 'manual',
+      },
+    );
+
+    await Promise.resolve();
+    expect(useBlockingTaskStore.getState()).toMatchObject({
+      currentStep: 'Loading capability tree',
+      progress: 0.5,
+    });
+
+    continueTask();
+    await expect(promise).resolves.toBe('refreshed');
+    expect(useBlockingTaskStore.getState().open).toBe(false);
+  });
+
   it('closes after success', async () => {
     await expect(blockingTask.run(
       async () => 'ok',

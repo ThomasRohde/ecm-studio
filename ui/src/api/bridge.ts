@@ -104,6 +104,7 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
   }
   if (method === 'workspace_pick_init') return mockCall<T>('workspace_init', ['C:\\Mock\\ECM Workspace', args[0] || 'Demo Workspace']);
   if (method === 'workspace_pick_open') return mockCall<T>('workspace_open', ['C:\\Mock\\ECM Workspace']);
+  if (method === 'dialog_pick_workspace') return 'C:\\Mock\\ECM Workspace' as T;
   if (method === 'workspace_status' || method === 'workspace_open') {
     if (!mockState.workspace) {
       mockState.workspace = {
@@ -552,6 +553,7 @@ export const api = {
     init: (path: string, name: string) => call<Workspace>('workspace_init', path, name),
     pickOpen: () => call<Workspace | null>('workspace_pick_open'),
     pickInit: (name: string) => call<Workspace | null>('workspace_pick_init', name),
+    pickFolder: () => call<string | null>('dialog_pick_workspace'),
     status: () => call<Workspace>('workspace_status'),
     rebuildIndex: () => call<{ capability_count: number; source_hash: string }>('workspace_rebuild_index'),
   },

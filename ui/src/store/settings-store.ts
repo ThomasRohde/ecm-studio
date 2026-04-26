@@ -6,6 +6,7 @@ interface SettingsState {
   settings: AppSettings;
   load: () => Promise<void>;
   setThemeMode: (themeMode: ThemeMode) => Promise<void>;
+  applySettings: (settings: AppSettings) => void;
 }
 
 const defaultSettings: AppSettings = {
@@ -26,6 +27,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 
   setThemeMode: async (themeMode) => {
     const settings = await api.settings.update({ theme_mode: themeMode });
+    applyTheme(settings.resolved_theme);
+    set({ settings });
+  },
+
+  applySettings: (settings) => {
     applyTheme(settings.resolved_theme);
     set({ settings });
   },

@@ -3,49 +3,37 @@ import type { MouseEvent } from 'react';
 import { Button, Input, Text } from '@fluentui/react-components';
 import { Gitgraph, MergeStyle, Mode, Orientation, TemplateName, templateExtend } from '@gitgraph/react';
 import { api } from '../api/bridge';
-import type { AuditEvent, BranchIntegrationCandidate, Checkpoint, GitGraphData, GitStatus, ImportMode, ImportPreview, ModelFormat, ReleaseBlocker, ReleaseStatus } from '../api/types';
+import type { AuditEvent, BranchIntegrationCandidate, GitGraphData, GitStatus, ImportMode, ImportPreview, ModelFormat, ReleaseBlocker, ReleaseStatus } from '../api/types';
 import { notify, errorMessage } from '../notifications/notify';
 import { useAppStore } from '../store/app-store';
 import { useSettingsStore } from '../store/settings-store';
 import { blockingTask } from '../tasks/blocking-task-store';
 import type { BlockingTaskOptions } from '../tasks/blocking-task-store';
 import { gitBlockingTaskOptions } from '../tasks/git-blocking-tasks';
+import {
+  refreshWorkspaceViews,
+  runWorkspaceRefreshTask,
+  workspaceDetails,
+  workspaceRefreshTaskOptions,
+} from '../workspace/workspace-refresh';
 import { GitBadges } from './GitBadges';
-
-async function refreshModelState() {
-  return {
-    workspace: await api.workspace.status(),
-    tree: await api.capabilities.listTree(),
-    diagnostics: await api.diagnostics.run(),
-    git: await api.git.status(),
-  };
-}
 
 export function WorkspacePanel() {
   const workspace = useAppStore((s) => s.workspace);
-  const setWorkspace = useAppStore((s) => s.setWorkspace);
-  const setTree = useAppStore((s) => s.setTree);
-  const setDiagnostics = useAppStore((s) => s.setDiagnostics);
   const settings = useSettingsStore((s) => s.settings);
-  const loadSettings = useSettingsStore((s) => s.load);
   const [path, setPath] = useState(workspace?.path ?? '');
   const [name, setName] = useState('ECM Workspace');
   const [advanced, setAdvanced] = useState(false);
 
-  async function refreshData() {
-    const state = await refreshModelState();
-    setWorkspace(state.workspace);
-    setTree(state.tree);
-    setDiagnostics(state.diagnostics);
-  }
-
   async function open(openPath?: string) {
+    const targetPath = openPath ?? (path || undefined);
     try {
-      const opened = await api.workspace.open(openPath ?? (path || undefined));
-      setWorkspace(opened);
+      const { snapshot } = await runWorkspaceRefreshTask(
+        async () => api.workspace.open(targetPath),
+        workspaceRefreshTaskOptions('open', workspaceDetails(targetPath)),
+      );
+      const opened = snapshot.workspace;
       setPath(opened.path);
-      await refreshData();
-      await loadSettings();
       notify.success({
         intent: 'workspace.opened',
         title: 'Workspace opened',
@@ -68,20 +56,9 @@ export function WorkspacePanel() {
 
   async function pickOpen() {
     try {
-      const opened = await api.workspace.pickOpen();
-      if (!opened) return;
-      setWorkspace(opened);
-      setPath(opened.path);
-      await refreshData();
-      await loadSettings();
-      notify.success({
-        intent: 'workspace.opened',
-        title: 'Workspace opened',
-        body: opened.name,
-        source: 'workspace',
-        dedupeKey: `workspace.open.${opened.path}`,
-        action: { label: 'Open workspace', panelId: 'workspace' },
-      });
+      const pickedPath = await api.workspace.pickFolder();
+      if (!pickedPath) return;
+      await open(pickedPath);
     } catch (error) {
       notify.error({
         intent: 'operation.failed',
@@ -96,20 +73,9 @@ export function WorkspacePanel() {
 
   async function pickInit() {
     try {
-      const initialized = await api.workspace.pickInit(name);
-      if (!initialized) return;
-      setWorkspace(initialized);
-      setPath(initialized.path);
-      await refreshData();
-      await loadSettings();
-      notify.success({
-        intent: 'workspace.created',
-        title: 'Workspace created',
-        body: initialized.name,
-        source: 'workspace',
-        dedupeKey: `workspace.create.${initialized.path}`,
-        action: { label: 'Open workspace', panelId: 'workspace' },
-      });
+      const pickedPath = await api.workspace.pickFolder();
+      if (!pickedPath) return;
+      await init(pickedPath);
     } catch (error) {
       notify.error({
         intent: 'operation.failed',
@@ -122,12 +88,14 @@ export function WorkspacePanel() {
     }
   }
 
-  async function init() {
+  async function init(initPath = path) {
     try {
-      const initialized = await api.workspace.init(path, name);
-      setWorkspace(initialized);
-      await refreshData();
-      await loadSettings();
+      const { snapshot } = await runWorkspaceRefreshTask(
+        async () => api.workspace.init(initPath, name),
+        workspaceRefreshTaskOptions('init', workspaceDetails(initPath)),
+      );
+      const initialized = snapshot.workspace;
+      setPath(initialized.path);
       notify.success({
         intent: 'workspace.created',
         title: 'Workspace created',
@@ -142,7 +110,7 @@ export function WorkspacePanel() {
         title: 'Could not initialize workspace',
         body: errorMessage(error),
         source: 'workspace',
-        dedupeKey: `workspace.create.${path}`,
+        dedupeKey: `workspace.create.${initPath}`,
         action: { label: 'Open workspace', panelId: 'workspace' },
       });
     }
@@ -150,8 +118,10 @@ export function WorkspacePanel() {
 
   async function rebuild() {
     try {
-      await api.workspace.rebuildIndex();
-      await refreshData();
+      await runWorkspaceRefreshTask(
+        async () => api.workspace.rebuildIndex(),
+        workspaceRefreshTaskOptions('rebuild', workspaceDetails(workspace?.path)),
+      );
       notify.success({
         intent: 'workspace.index.rebuilt',
         title: 'Index rebuilt',
@@ -219,10 +189,6 @@ export function WorkspacePanel() {
 
 export function ImportExportPanel() {
   const workspace = useAppStore((s) => s.workspace);
-  const setWorkspace = useAppStore((s) => s.setWorkspace);
-  const setTree = useAppStore((s) => s.setTree);
-  const setDiagnostics = useAppStore((s) => s.setDiagnostics);
-  const setGitStatus = useAppStore((s) => s.setGitStatus);
   const [format, setFormat] = useState<ModelFormat>('jsonl');
   const [mode, setMode] = useState<ImportMode>('append');
   const [preview, setPreview] = useState<ImportPreview | null>(null);
@@ -231,14 +197,6 @@ export function ImportExportPanel() {
   useEffect(() => {
     setPreview(null);
   }, [mode, workspace?.path]);
-
-  async function refreshAfterModelChange() {
-    const state = await refreshModelState();
-    setWorkspace(state.workspace);
-    setTree(state.tree);
-    setDiagnostics(state.diagnostics);
-    setGitStatus(state.git);
-  }
 
   async function previewImport() {
     try {
@@ -273,9 +231,11 @@ export function ImportExportPanel() {
   async function applyImport() {
     if (!preview) return;
     try {
-      const result = await api.models.importApply(preview.source_path, preview.mode);
+      const { result } = await runWorkspaceRefreshTask(
+        async () => api.models.importApply(preview.source_path, preview.mode),
+        workspaceRefreshTaskOptions('importApply', `Source: ${preview.source_path}`),
+      );
       setPreview(result);
-      await refreshAfterModelChange();
       notify.success({
         intent: 'import.applied',
         title: 'Import applied',
@@ -380,38 +340,25 @@ export function canApplyImportPreview(preview: ImportPreview | null): boolean {
 }
 
 export function GitPanel() {
+  const workspace = useAppStore((s) => s.workspace);
   const gitStatus = useAppStore((s) => s.gitStatus);
-  const setGitStatus = useAppStore((s) => s.setGitStatus);
+  const integrationCandidates = useAppStore((s) => s.integrationCandidates);
+  const releaseStatus = useAppStore((s) => s.releaseStatus);
+  const history = useAppStore((s) => s.gitHistory);
+  const graph = useAppStore((s) => s.gitGraph);
   const [message, setMessage] = useState('ECM checkpoint');
   const [branchName, setBranchName] = useState('work/new-capability-model');
   const [contextBranch, setContextBranch] = useState('');
   const [integrationBranch, setIntegrationBranch] = useState('');
-  const [integrationCandidates, setIntegrationCandidates] = useState<BranchIntegrationCandidate[]>([]);
   const [releaseVersion, setReleaseVersion] = useState('0.1.0');
-  const [releaseStatus, setReleaseStatus] = useState<ReleaseStatus | null>(null);
-  const [history, setHistory] = useState<Checkpoint[]>([]);
-  const [graph, setGraph] = useState<GitGraphData | null>(null);
 
   async function refresh() {
     try {
-      const [status, nextHistory, nextGraph, nextReleaseStatus, nextIntegrationCandidates] = await Promise.all([
-        api.git.status(),
-        api.git.history(),
-        api.git.graph(),
-        api.releases.status(),
-        api.git.integrationCandidates(),
-      ]);
-      setGitStatus(status);
-      setContextBranch((current) => validBranchOrFallback(current, status.branches, status.branch));
-      setIntegrationBranch((current) => validIntegrationBranchOrFallback(current, nextIntegrationCandidates));
-      setIntegrationCandidates(nextIntegrationCandidates);
-      setHistory(nextHistory);
-      setGraph(nextGraph);
-      setReleaseStatus(nextReleaseStatus);
+      await refreshWorkspaceViews();
     } catch (error) {
       notify.error({
         intent: 'operation.failed',
-        title: 'Could not refresh Git state',
+        title: 'Could not refresh workspace state',
         body: errorMessage(error),
         source: 'git',
         dedupeKey: `git.refresh.${gitStatus?.branch ?? 'current'}`,
@@ -442,7 +389,7 @@ export function GitPanel() {
     try {
       const result = await blockingTask.run(async () => {
         const nextResult = await action();
-        await refresh();
+        await refreshWorkspaceViews();
         return nextResult;
       }, task);
       const body = typeof success.body === 'function' ? success.body(result) : success.body;
@@ -605,9 +552,18 @@ export function GitPanel() {
     }
   }
 
-  useEffect(() => { void refresh(); }, []);
-
   const branches = gitStatus?.branches ?? [];
+  const branchKey = branches.join('\u0000');
+  const candidateKey = integrationCandidates
+    .map((candidate) => `${candidate.name}:${candidate.integrable}`)
+    .join('\u0000');
+
+  useEffect(() => {
+    if (!workspace) return;
+    setContextBranch((current) => validBranchOrFallback(current, branches, gitStatus?.branch));
+    setIntegrationBranch((current) => validIntegrationBranchOrFallback(current, integrationCandidates));
+  }, [workspace?.path, gitStatus?.branch, branchKey, candidateKey]);
+
   const clean = gitStatus?.clean ?? false;
   const isRepo = gitStatus?.is_repo ?? false;
   const mergeInProgress = gitStatus?.merge_in_progress ?? false;
@@ -895,8 +851,6 @@ export function DiagnosticsPanel() {
     }
   }
 
-  useEffect(() => { void run({ silent: true }); }, []);
-
   return (
     <section className="panel stack">
       <div className="toolbar"><Text weight="semibold">Diagnostics</Text><Button onClick={() => void run()}>Run</Button></div>
@@ -912,12 +866,14 @@ export function DiagnosticsPanel() {
 }
 
 export function AuditPanel() {
-  const [events, setEvents] = useState<AuditEvent[]>([]);
+  const workspace = useAppStore((s) => s.workspace);
+  const events = useAppStore((s) => s.auditEvents);
+  const setAuditEvents = useAppStore((s) => s.setAuditEvents);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   async function refresh() {
     try {
-      setEvents(await api.audit.recent());
+      setAuditEvents(await api.audit.recent());
       setExpandedKey(null);
     } catch (error) {
       notify.error({
@@ -931,7 +887,7 @@ export function AuditPanel() {
     }
   }
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => { setExpandedKey(null); }, [workspace?.path, events]);
 
   return (
     <section className="panel stack audit-panel">

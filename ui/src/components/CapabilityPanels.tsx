@@ -105,8 +105,19 @@ export function CapabilityTreePanel() {
   useEffect(() => {
     expansionInitializedFor.current = null;
     setExpandedItems([CAPABILITY_TREE_ROOT_ID]);
-    if (workspace) void refresh({ initializeExpansion: true });
+    setResults([]);
+    setQuery('');
   }, [workspace?.path]);
+
+  useEffect(() => {
+    if (!workspace) return;
+    if (expansionInitializedFor.current !== workspace.path) {
+      expansionInitializedFor.current = workspace.path;
+      setExpandedItems(fullyExpandedCapabilityItems(tree));
+      return;
+    }
+    setExpandedItems((current) => reconcileExpandedCapabilityItems(current, tree));
+  }, [workspace?.path, tree]);
 
   async function create(parentId: string | null) {
     if (!newName.trim()) return;

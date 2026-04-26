@@ -209,8 +209,7 @@ class BridgeApi:
 
     @envelope
     def dialog_pick_workspace(self) -> str | None:
-        # Implemented in desktop app after the window is attached.
-        return None
+        return self._pick_folder()
 
     def _open_initial_workspace(self, workspace: Path | None) -> None:
         if workspace is not None:

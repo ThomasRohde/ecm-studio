@@ -9,6 +9,11 @@ export interface BlockingTaskOptions {
   details?: string;
   kind?: BlockingTaskKind;
   stepDelayMs?: number;
+  progressMode?: 'timed' | 'manual';
+}
+
+export interface BlockingTaskController {
+  setStep: (currentStep: string, progress?: number) => void;
 }
 
 interface BlockingTaskSnapshot {
@@ -77,7 +82,7 @@ export const useBlockingTaskStore = create<BlockingTaskState>((set) => ({
 
 export const blockingTask = {
   run: async <T>(
-    operation: () => Promise<T>,
+    operation: (controller: BlockingTaskController) => Promise<T>,
     options: BlockingTaskOptions,
   ): Promise<T> => {
     const store = useBlockingTaskStore.getState();
@@ -87,12 +92,23 @@ export const blockingTask = {
 
     const steps = [...options.steps];
     const delayMs = options.stepDelayMs ?? BLOCKING_TASK_STEP_DELAY_MS;
+    const progressMode = options.progressMode ?? 'timed';
     let stepIndex = 0;
     let timer: ReturnType<typeof setInterval> | undefined;
 
     store.startTask({ ...options, steps }, Date.now());
 
-    if (steps.length > 1) {
+    const controller: BlockingTaskController = {
+      setStep: (currentStep, progress) => {
+        const index = steps.indexOf(currentStep);
+        useBlockingTaskStore.getState().setStep(
+          currentStep,
+          progress ?? progressForStep(index >= 0 ? index : stepIndex, steps.length),
+        );
+      },
+    };
+
+    if (progressMode === 'timed' && steps.length > 1) {
       timer = setInterval(() => {
         stepIndex = Math.min(stepIndex + 1, steps.length - 1);
         useBlockingTaskStore.getState().setStep(
@@ -107,7 +123,7 @@ export const blockingTask = {
     }
 
     try {
-      return await operation();
+      return await operation(controller);
     } finally {
       if (timer) clearInterval(timer);
       useBlockingTaskStore.getState().closeTask();

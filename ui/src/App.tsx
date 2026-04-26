@@ -9,6 +9,10 @@ import { ToastHost } from './notifications/ToastHost';
 import { useAppStore } from './store/app-store';
 import { applyTheme, useSettingsStore } from './store/settings-store';
 import { BlockingTaskDialog } from './tasks/BlockingTaskDialog';
+import { hydrateStartupWorkspace } from './workspace/workspace-refresh';
+import { notify, errorMessage } from './notifications/notify';
+
+let startupWorkspaceHydrationStarted = false;
 
 export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -20,6 +24,21 @@ export function App() {
   useEffect(() => {
     void loadSettings();
   }, [loadSettings]);
+
+  useEffect(() => {
+    if (startupWorkspaceHydrationStarted) return;
+    startupWorkspaceHydrationStarted = true;
+    void hydrateStartupWorkspace().catch((error) => {
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not load startup workspace',
+        body: errorMessage(error),
+        source: 'workspace',
+        dedupeKey: 'workspace.startup',
+        action: { label: 'Open workspace', panelId: 'workspace' },
+      });
+    });
+  }, []);
 
   useEffect(() => {
     applyTheme(settings.resolved_theme);
