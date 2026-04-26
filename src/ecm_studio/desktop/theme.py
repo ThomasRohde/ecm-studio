@@ -14,14 +14,14 @@ DWMWA_TEXT_COLOR = 36
 
 CHROME_COLORS: dict[ResolvedTheme, dict[int, str]] = {
     "light": {
-        DWMWA_BORDER_COLOR: "#c8d8d3",
-        DWMWA_CAPTION_COLOR: "#d6e4df",
-        DWMWA_TEXT_COLOR: "#1f272c",
+        DWMWA_BORDER_COLOR: "#e3ddcd",
+        DWMWA_CAPTION_COLOR: "#fbf9f3",
+        DWMWA_TEXT_COLOR: "#0c1216",
     },
     "dark": {
-        DWMWA_BORDER_COLOR: "#1e3a3a",
-        DWMWA_CAPTION_COLOR: "#0f1f2c",
-        DWMWA_TEXT_COLOR: "#f3f6f8",
+        DWMWA_BORDER_COLOR: "#1a2128",
+        DWMWA_CAPTION_COLOR: "#0e1419",
+        DWMWA_TEXT_COLOR: "#f1efe7",
     },
 }
 

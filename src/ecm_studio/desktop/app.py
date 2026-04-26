@@ -72,7 +72,7 @@ def run(workspace: Path | None = None, dev_ui: str | None = None) -> int:
         api._open_initial_workspace(workspace)
     url = dev_ui or _ui_index().as_uri()
     settings = services.settings.get()
-    background_color = "#101418" if settings["resolved_theme"] == "dark" else "#f6f4ef"
+    background_color = "#0a0e12" if settings["resolved_theme"] == "dark" else "#faf8f2"
     window = webview.create_window(
         title="ECM Studio",
         url=url,
