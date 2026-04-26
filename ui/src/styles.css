@@ -634,6 +634,29 @@ body {
   box-sizing: border-box;
 }
 
+.field-label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted-fg);
+  font-size: 12px;
+}
+
+.release-blockers {
+  display: grid;
+  gap: 3px;
+  border-left: 3px solid var(--error-fg);
+  padding-left: 8px;
+}
+
+.release-link {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--accent);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .git-graph-card {
   min-height: 190px;
 }

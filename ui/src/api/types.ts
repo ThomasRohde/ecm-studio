@@ -26,6 +26,68 @@ export interface GitStatus {
   merge_in_progress: boolean;
 }
 
+export interface ReleaseBlocker {
+  code: string;
+  message: string;
+}
+
+export interface GitHubRemoteStatus {
+  name: string;
+  url: string;
+  host: string | null;
+  owner: string | null;
+  repo: string | null;
+  is_github: boolean;
+}
+
+export interface GitHubCliStatus {
+  available: boolean;
+  authenticated: boolean;
+  message?: string | null;
+}
+
+export interface ReleaseSummary {
+  id: string;
+  version_label: string;
+  tag: string;
+  state: string;
+  capability_count: number;
+  export_paths: string[];
+  released_at: string;
+  checkpoint_id?: string | null;
+  published_at?: string;
+  github_release_url?: string;
+  delivery_status?: string;
+}
+
+export interface ReleaseStatus {
+  can_cut: boolean;
+  can_publish: boolean;
+  cut_blockers: ReleaseBlocker[];
+  publish_blockers: ReleaseBlocker[];
+  remote: GitHubRemoteStatus | null;
+  github_cli: GitHubCliStatus;
+  latest_release: ReleaseSummary | null;
+}
+
+export interface ReleaseResult {
+  version_label: string;
+  tag: string;
+  checkpoint_id: string;
+  model_version_id: string;
+  export_paths: string[];
+  released_at: string;
+}
+
+export interface PublishResult {
+  tag: string;
+  github_release_url: string;
+  publish_event_id: string;
+  checkpoint_id: string;
+  published_at: string;
+  pushed: { pushed: boolean; remote: string; branch: string };
+}
+
 export interface GitGraphAuthor {
   name: string;
   email: string;

@@ -89,11 +89,11 @@ class GitService:
         }
 
     def current_branch(self) -> str | None:
-        result = self._run_git("rev-parse", "--abbrev-ref", "HEAD", check=False)
+        result = self._run_git("branch", "--show-current", check=False)
         if result.returncode != 0:
             return None
         branch = result.stdout.strip()
-        return None if branch == "HEAD" else branch
+        return branch or None
 
     def list_branches(self) -> list[str]:
         if not self.is_repo():
@@ -108,6 +108,12 @@ class GitService:
     def has_remote(self) -> bool:
         result = self._run_git("remote", check=False)
         return result.returncode == 0 and bool(result.stdout.strip())
+
+    def remote_url(self, remote: str = "origin") -> str | None:
+        result = self._run_git("config", "--get", f"remote.{remote}.url", check=False)
+        if result.returncode != 0:
+            return None
+        return result.stdout.strip() or None
 
     def upstream(self) -> str | None:
         result = self._run_git(
@@ -295,6 +301,30 @@ class GitService:
         args = ["tag", "-a", tag.strip(), "-m", message or tag.strip()]
         self._git(*args)
 
+    def tag_exists(self, tag: str) -> bool:
+        self._require_repo()
+        if not tag.strip():
+            return False
+        result = self._run_git(
+            "rev-parse",
+            "-q",
+            "--verify",
+            f"refs/tags/{tag.strip()}",
+            check=False,
+        )
+        return result.returncode == 0
+
+    def is_ancestor(self, ancestor_ref: str, descendant_ref: str = "HEAD") -> bool:
+        self._require_repo()
+        result = self._run_git(
+            "merge-base",
+            "--is-ancestor",
+            f"{ancestor_ref}^{{commit}}",
+            descendant_ref,
+            check=False,
+        )
+        return result.returncode == 0
+
     def pull(self, remote: str = "origin", branch: str | None = None) -> dict:
         self._require_repo()
         if not self.has_remote():
@@ -311,6 +341,15 @@ class GitService:
         target_branch = branch or self.current_branch() or "main"
         self._git("push", "-u", remote, target_branch)
         return {"pushed": True, "remote": remote, "branch": target_branch}
+
+    def push_tag(self, tag: str, remote: str = "origin") -> dict:
+        self._require_repo()
+        if not self.has_remote():
+            raise AppError("GIT_REMOTE_MISSING", "This workspace has no configured Git remote.")
+        if not self.tag_exists(tag):
+            raise AppError("RELEASE_TAG_MISSING", f'Release tag "{tag}" does not exist.')
+        self._git("push", remote, tag)
+        return {"pushed": True, "remote": remote, "tag": tag}
 
     def _latest_checkpoint(self) -> Checkpoint | None:
         history = self.history(1)

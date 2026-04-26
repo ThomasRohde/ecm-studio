@@ -114,6 +114,30 @@ class ModelEvent(JsonModel):
     capability_count: int
     source_path: str | None = None
     checkpoint_id: str | None = None
+    version_label: str | None = None
+    state: str | None = None
+    tag: str | None = None
+    export_paths: list[str] = Field(default_factory=list)
+    released_at: str | None = None
+    actor: str = "local"
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+    def durable_dict(self) -> dict:
+        return self.model_dump(mode="json", by_alias=True)
+
+
+class PublishEvent(JsonModel):
+    record_type: Literal["publish_event"] = Field("publish_event", alias="_t")
+    schema_version: Literal["1.0"] = SCHEMA_VERSION
+    id: str = Field(default_factory=new_id)
+    event_type: str
+    model_version_id: str | None = None
+    tag: str
+    github_release_url: str | None = None
+    asset_paths: list[str] = Field(default_factory=list)
+    delivery_status: str
+    published_at: str = Field(default_factory=now_iso)
     actor: str = "local"
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)

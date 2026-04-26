@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
+import type { MouseEvent } from 'react';
 import { Button, Input, Text } from '@fluentui/react-components';
 import { Gitgraph, MergeStyle, Mode, Orientation, TemplateName, templateExtend } from '@gitgraph/react';
 import { api } from '../api/bridge';
-import type { AuditEvent, Checkpoint, GitGraphData, ImportMode, ImportPreview, ModelFormat } from '../api/types';
+import type { AuditEvent, Checkpoint, GitGraphData, GitStatus, ImportMode, ImportPreview, ModelFormat, ReleaseBlocker, ReleaseStatus } from '../api/types';
 import { useAppStore } from '../store/app-store';
 import { useSettingsStore } from '../store/settings-store';
 import { GitBadges } from './GitBadges';
@@ -257,21 +258,25 @@ export function GitPanel() {
   const [branchName, setBranchName] = useState('work/new-capability-model');
   const [contextBranch, setContextBranch] = useState('');
   const [integrationBranch, setIntegrationBranch] = useState('');
+  const [releaseVersion, setReleaseVersion] = useState('0.1.0');
+  const [releaseStatus, setReleaseStatus] = useState<ReleaseStatus | null>(null);
   const [history, setHistory] = useState<Checkpoint[]>([]);
   const [graph, setGraph] = useState<GitGraphData | null>(null);
 
   async function refresh() {
     try {
-      const [status, nextHistory, nextGraph] = await Promise.all([
+      const [status, nextHistory, nextGraph, nextReleaseStatus] = await Promise.all([
         api.git.status(),
         api.git.history(),
         api.git.graph(),
+        api.releases.status(),
       ]);
       setGitStatus(status);
       setContextBranch((current) => validBranchOrFallback(current, status.branches, status.branch));
       setIntegrationBranch((current) => validIntegrationBranchOrFallback(current, status.branches, status.branch));
       setHistory(nextHistory);
       setGraph(nextGraph);
+      setReleaseStatus(nextReleaseStatus);
     } catch (error) {
       setError(String(error));
     }
@@ -290,6 +295,27 @@ export function GitPanel() {
     await run(() => api.git.checkpoint(message));
   }
 
+  async function cutRelease() {
+    await run(() => api.releases.cut(releaseVersion));
+  }
+
+  async function publishRelease() {
+    const tag = releaseStatus?.latest_release?.tag;
+    if (!tag) return;
+    await run(() => api.releases.publish(tag));
+  }
+
+  async function openReleaseUrl(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    const url = releaseStatus?.latest_release?.github_release_url;
+    if (!url) return;
+    try {
+      await api.external.openUrl(url);
+    } catch (error) {
+      setError(String(error));
+    }
+  }
+
   useEffect(() => { void refresh(); }, []);
 
   const branches = gitStatus?.branches ?? [];
@@ -299,7 +325,14 @@ export function GitPanel() {
   const canRisk = isRepo && clean && !mergeInProgress;
   const otherBranches = branches.filter((branch) => branch !== gitStatus?.branch);
   const pendingCount = (gitStatus?.changed_files?.length ?? 0) + (gitStatus?.untracked_files?.length ?? 0);
-  const remoteLabel = gitStatus?.has_remote ? gitStatus.upstream ?? 'Remote configured' : 'Local workspace only';
+  const releaseTag = releaseTagForVersion(releaseVersion);
+  const canCut = canCutRelease(releaseStatus, gitStatus, releaseVersion);
+  const canPublish = canPublishRelease(releaseStatus, gitStatus);
+  const remoteLabel = releaseStatus?.remote?.is_github
+    ? `${releaseStatus.remote.host}/${releaseStatus.remote.owner}/${releaseStatus.remote.repo}`
+    : gitStatus?.has_remote
+      ? gitStatus.upstream ?? 'Remote configured'
+      : 'Local workspace only';
 
   return (
     <section className="panel stack">
@@ -363,17 +396,39 @@ export function GitPanel() {
         </div>
 
         <div className="card workflow-card">
-          <Text weight="semibold">Publish</Text>
+          <Text weight="semibold">Release</Text>
           <Text size={200}>{remoteLabel}</Text>
           <Text size={200}>Outgoing {gitStatus?.ahead ?? 0}; incoming {gitStatus?.behind ?? 0}</Text>
+          <label className="field-label">
+            Version
+            <Input value={releaseVersion} onChange={(_, d) => setReleaseVersion(d.value)} aria-label="Release version" />
+          </label>
+          <Text size={200}>Tag {releaseTag}</Text>
+          {releaseStatus?.latest_release ? (
+            <Text size={200}>Latest {releaseStatus.latest_release.tag} ({releaseStatus.latest_release.state})</Text>
+          ) : null}
           <div className="toolbar">
             <Button disabled={!canRisk || !gitStatus?.has_remote} onClick={() => void run(() => api.git.pull())}>
               Receive Updates
             </Button>
-            <Button disabled={!canRisk || !gitStatus?.has_remote} onClick={() => void run(() => api.git.push())}>
-              Publish Checkpoints
+            <Button disabled={!canCut} appearance="primary" onClick={() => void cutRelease()}>
+              Cut Release
+            </Button>
+            <Button disabled={!canPublish} onClick={() => void publishRelease()}>
+              Publish Release
             </Button>
           </div>
+          <ReleaseBlockers blockers={releaseStatus?.cut_blockers ?? []} title="Cut blocked" />
+          <ReleaseBlockers blockers={releaseStatus?.publish_blockers ?? []} title="Publish blocked" />
+          {releaseStatus?.latest_release?.github_release_url ? (
+            <a
+              className="release-link"
+              href={releaseStatus.latest_release.github_release_url}
+              onClick={(event) => void openReleaseUrl(event)}
+            >
+              {releaseStatus.latest_release.github_release_url}
+            </a>
+          ) : null}
         </div>
       </div>
 
@@ -395,6 +450,52 @@ export function GitPanel() {
         </div>
       </details>
     </section>
+  );
+}
+
+export function releaseTagForVersion(version: string): string {
+  const normalized = version.trim();
+  return /^(\d+\.\d+\.\d+)$/.test(normalized) ? `ecm-v${normalized}` : 'ecm-vX.Y.Z';
+}
+
+export function canCutRelease(
+  releaseStatus: ReleaseStatus | null | undefined,
+  gitStatus: GitStatus | null | undefined,
+  version: string,
+): boolean {
+  return Boolean(
+    gitStatus?.is_repo
+      && gitStatus.clean
+      && gitStatus.has_remote
+      && !gitStatus.merge_in_progress
+      && releaseStatus?.can_cut
+      && releaseTagForVersion(version) !== 'ecm-vX.Y.Z',
+  );
+}
+
+export function canPublishRelease(
+  releaseStatus: ReleaseStatus | null | undefined,
+  gitStatus: GitStatus | null | undefined,
+): boolean {
+  return Boolean(
+    gitStatus?.is_repo
+      && gitStatus.clean
+      && gitStatus.has_remote
+      && !gitStatus.merge_in_progress
+      && releaseStatus?.can_publish
+      && releaseStatus.latest_release,
+  );
+}
+
+function ReleaseBlockers({ blockers, title }: { blockers: ReleaseBlocker[]; title: string }) {
+  if (blockers.length === 0) return null;
+  return (
+    <div className="release-blockers">
+      <Text size={200} weight="semibold">{title}</Text>
+      {blockers.map((blocker) => (
+        <Text size={200} key={`${title}-${blocker.code}`}>{blocker.message}</Text>
+      ))}
+    </div>
   );
 }
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import webbrowser
 from pathlib import Path
 from typing import Any
 
@@ -8,6 +9,7 @@ import webview
 from ecm_studio.application.results import envelope
 from ecm_studio.application.services import AppServices
 from ecm_studio.desktop.theme import apply_windows_chrome_theme
+from ecm_studio.domain.errors import ValidationFailed
 
 
 class BridgeApi:
@@ -175,12 +177,31 @@ class BridgeApi:
         return self._services.git.push()
 
     @envelope
+    def releases_status(self) -> dict[str, Any]:
+        return self._services.releases.status()
+
+    @envelope
+    def releases_cut(self, version: str, notes: str | None = None) -> dict[str, Any]:
+        return self._services.releases.cut(version, notes)
+
+    @envelope
+    def releases_publish(self, tag: str) -> dict[str, Any]:
+        return self._services.releases.publish(tag)
+
+    @envelope
     def diagnostics_run(self) -> list[dict[str, Any]]:
         return self._services.diagnostics.run()
 
     @envelope
     def audit_recent(self, limit: int = 100) -> list[dict[str, Any]]:
         return self._services.audit.recent(limit)
+
+    @envelope
+    def external_open_url(self, url: str) -> dict[str, Any]:
+        if not url.startswith(("https://", "http://")):
+            raise ValidationFailed("Only HTTP and HTTPS URLs can be opened externally.")
+        opened = webbrowser.open(url, new=1)
+        return {"opened": opened, "url": url}
 
     @envelope
     def dialog_pick_workspace(self) -> str | None:

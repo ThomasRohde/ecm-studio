@@ -13,6 +13,10 @@ import type {
   ImportMode,
   ImportPreview,
   ModelFormat,
+  PublishResult,
+  ReleaseResult,
+  ReleaseStatus,
+  ReleaseSummary,
   SearchResult,
   ThemeMode,
   Workspace,
@@ -48,6 +52,7 @@ const mockState: {
   graphCommits: GitGraphCommit[];
   settings: AppSettings;
   git: GitStatus;
+  latestRelease: ReleaseSummary | null;
   audit: AuditEvent[];
 } = {
   workspace: null,
@@ -61,6 +66,7 @@ const mockState: {
     recent_workspaces: [],
   },
   git: mockGitStatus(),
+  latestRelease: null,
   audit: [],
 };
 
@@ -263,6 +269,59 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
     addMockGraphCommit(checkpoint.message, [headForBranch(mockState.git.branch)].filter(Boolean) as string[], checkpoint.id);
     return checkpoint as T;
   }
+  if (method === 'releases_status') return mockReleaseStatus() as T;
+  if (method === 'releases_cut') {
+    const version = String(args[0] || '');
+    if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('RELEASE_INVALID_VERSION: Release version must use the form "X.Y.Z".');
+    if (!mockState.git.has_remote) throw new Error('RELEASE_REMOTE_MISSING: Configure an origin remote before cutting or publishing releases.');
+    const tag = `ecm-v${version}`;
+    const checkpoint = await mockCall<Checkpoint>('git_checkpoint', [`Release ${tag}`]);
+    mockState.latestRelease = {
+      id: crypto.randomUUID(),
+      version_label: version,
+      tag,
+      state: 'released',
+      capability_count: mockState.capabilities.length,
+      export_paths: [
+        `ecm/exports/${tag}/capabilities.jsonl`,
+        `ecm/exports/${tag}/capabilities.csv`,
+        `ecm/exports/${tag}/capabilities.bundle.json`,
+      ],
+      released_at: new Date().toISOString(),
+      checkpoint_id: checkpoint.id,
+    };
+    addTagRef(tag, checkpoint.id);
+    return {
+      version_label: version,
+      tag,
+      checkpoint_id: checkpoint.id,
+      model_version_id: mockState.latestRelease.id,
+      export_paths: mockState.latestRelease.export_paths,
+      released_at: mockState.latestRelease.released_at,
+    } as T;
+  }
+  if (method === 'releases_publish') {
+    const tag = String(args[0]);
+    if (!mockState.git.has_remote) throw new Error('RELEASE_REMOTE_MISSING: Configure an origin remote before cutting or publishing releases.');
+    if (!mockState.latestRelease || mockState.latestRelease.tag !== tag) throw new Error(`RELEASE_TAG_MISSING: Release tag "${tag}" does not exist.`);
+    const publishedAt = new Date().toISOString();
+    const url = `https://github.com/mock/ecm/releases/tag/${tag}`;
+    mockState.latestRelease = {
+      ...mockState.latestRelease,
+      published_at: publishedAt,
+      github_release_url: url,
+      delivery_status: 'success',
+    };
+    const checkpoint = await mockCall<Checkpoint>('git_checkpoint', [`Record publication ${tag}`]);
+    return {
+      tag,
+      github_release_url: url,
+      publish_event_id: crypto.randomUUID(),
+      checkpoint_id: checkpoint.id,
+      published_at: publishedAt,
+      pushed: { pushed: true, remote: 'origin', branch: mockState.git.branch ?? 'main' },
+    } as T;
+  }
   if (method === 'diagnostics_run') return [] as T;
   if (method === 'audit_recent') return mockState.audit.slice(0, Number(args[0] || 100)) as T;
   if (method === 'capabilities_export') return { path: 'mock', count: mockState.capabilities.length } as T;
@@ -284,6 +343,9 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
       rebuild: { capability_count: mockState.capabilities.length, source_hash: 'mock' },
     };
     return preview as T;
+  }
+  if (method === 'external_open_url') {
+    return { opened: true, url: String(args[0] || '') } as T;
   }
   throw new Error(`Mock method not implemented: ${method}`);
 }
@@ -393,10 +455,56 @@ function addBranchRef(branch: string, hash: string) {
   commit.refs.push(branch);
 }
 
+function addTagRef(tag: string, hash: string) {
+  const commit = mockState.graphCommits.find((item) => item.hash === hash);
+  if (!commit) return;
+  const ref = `tag: ${tag}`;
+  if (!commit.refs.includes(ref)) commit.refs.push(ref);
+}
+
 function removeBranchRef(branch: string) {
   for (const commit of mockState.graphCommits) {
     commit.refs = commit.refs.filter((ref) => ref !== branch);
   }
+}
+
+function mockReleaseStatus(): ReleaseStatus {
+  const noRemote = {
+    code: 'RELEASE_REMOTE_MISSING',
+    message: 'Configure an origin remote before cutting or publishing releases.',
+  };
+  const noRelease = {
+    code: 'RELEASE_TAG_MISSING',
+    message: 'No local release is available to publish.',
+  };
+  const remote = mockState.git.has_remote
+    ? {
+        name: 'origin',
+        url: 'https://github.com/mock/ecm.git',
+        host: 'github.com',
+        owner: 'mock',
+        repo: 'ecm',
+        is_github: true,
+      }
+    : null;
+  const cutBlockers = mockState.git.has_remote ? [] : [noRemote];
+  const publishBlockers = [
+    ...cutBlockers,
+    ...(mockState.latestRelease ? [] : [noRelease]),
+  ];
+  return {
+    can_cut: cutBlockers.length === 0,
+    can_publish: publishBlockers.length === 0,
+    cut_blockers: cutBlockers,
+    publish_blockers: publishBlockers,
+    remote,
+    github_cli: {
+      available: mockState.git.has_remote,
+      authenticated: mockState.git.has_remote,
+      message: null,
+    },
+    latest_release: mockState.latestRelease,
+  };
 }
 
 export const api = {
@@ -443,11 +551,19 @@ export const api = {
     pull: () => call<{ pulled: boolean; remote: string; branch: string }>('git_pull'),
     push: () => call<{ pushed: boolean; remote: string; branch: string }>('git_push'),
   },
+  releases: {
+    status: () => call<ReleaseStatus>('releases_status'),
+    cut: (version: string, notes?: string) => call<ReleaseResult>('releases_cut', version, notes ?? null),
+    publish: (tag: string) => call<PublishResult>('releases_publish', tag),
+  },
   diagnostics: {
     run: () => call<Diagnostic[]>('diagnostics_run'),
   },
   audit: {
     recent: (limit = 100) => call<AuditEvent[]>('audit_recent', limit),
+  },
+  external: {
+    openUrl: (url: string) => call<{ opened: boolean; url: string }>('external_open_url', url),
   },
 };
 
