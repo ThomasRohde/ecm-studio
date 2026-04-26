@@ -57,6 +57,7 @@ artifacts = ["src/ecm_studio/assets/**"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src/ecm_studio", "README.md", "LICENSE", "CHANGELOG.md", "screenshot.png"]
+artifacts = ["src/ecm_studio/assets/**"]
 
 [tool.ruff]
 line-length = 100

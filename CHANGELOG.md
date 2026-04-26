@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.3] - 2026-04-26
+
+- Bundle UI fonts locally and remove the Google Fonts runtime dependency.
+- Include packaged UI assets in source distributions.
+
 ## [0.3.2] - 2026-04-26
 
 - Use an absolute GitHub-hosted screenshot URL so the PyPI README renders the image.
