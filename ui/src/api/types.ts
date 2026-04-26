@@ -11,6 +11,7 @@ export interface Workspace {
   path: string;
   name: string;
   initialized: boolean;
+  settings: RepositorySettings;
   index_current: boolean;
   rebuild?: { capability_count: number; source_hash: string } | null;
   git: GitStatus;
@@ -123,6 +124,29 @@ export interface GitGraphData {
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
 export type ViewSetup = Record<string, unknown>;
+
+export interface CapabilityMapColorScheme {
+  depth_colors: string[];
+  leaf_color: string;
+}
+
+export interface CapabilityMapSettings {
+  target_aspect_ratio: number;
+  color_scheme: CapabilityMapColorScheme;
+}
+
+export interface RepositorySettings {
+  capability_map: CapabilityMapSettings;
+}
+
+export interface CapabilityMapSettingsPatch {
+  target_aspect_ratio?: number;
+  color_scheme?: Partial<CapabilityMapColorScheme>;
+}
+
+export interface RepositorySettingsPatch {
+  capability_map?: CapabilityMapSettingsPatch;
+}
 
 export interface SettingsPatch {
   theme_mode?: ThemeMode;

@@ -4,6 +4,7 @@ import { useAppStore } from '../store/app-store';
 import {
   CAPABILITY_MAP_ALL_ROOTS,
   capabilityMapById,
+  capabilityMapNodeFill,
   capabilityMapRootOptions,
   getCapabilityMapRoots,
   layoutCapabilityMap,
@@ -62,6 +63,58 @@ describe('capability map layout', () => {
     expect(serializeLayout(first!)).toEqual(serializeLayout(second!));
     expect(first!.totalWidth).toBeGreaterThan(300);
     expect(first!.totalHeight).toBeGreaterThan(100);
+  });
+
+  it('wraps top-level roots toward the target aspect ratio', () => {
+    const model = Array.from({ length: 12 }, (_, index) =>
+      capability(`root-${index}`, `Root ${index}`, index, null),
+    );
+    const wide = layoutCapabilityMap(model, {
+      layoutOptions: { aspectRatio: 20 },
+    });
+    const compact = layoutCapabilityMap(model, {
+      layoutOptions: { aspectRatio: 1 },
+    });
+
+    expect(wide).not.toBeNull();
+    expect(compact).not.toBeNull();
+    expect(compact!.totalWidth).toBeLessThan(wide!.totalWidth);
+    expect(compact!.totalHeight).toBeGreaterThan(wide!.totalHeight);
+    expect(compact!.totalWidth / compact!.totalHeight).toBeLessThan(4);
+  });
+
+  it('uses depth colors for parents and the configured leaf color for effective leaves', () => {
+    const layout = layoutCapabilityMap(capabilityModel(), {
+      rootId: CAPABILITY_MAP_ALL_ROOTS,
+      maxDepth: -1,
+    });
+    expect(layout).not.toBeNull();
+
+    const sales = layout!.nodes.find((node) => node.id === 'sales');
+    const directSales = layout!.nodes.find((node) => node.id === 'direct-sales');
+    const leadCapture = layout!.nodes.find((node) => node.id === 'lead-capture');
+
+    expect(sales).toBeDefined();
+    expect(directSales).toBeDefined();
+    expect(leadCapture).toBeDefined();
+    expect(
+      capabilityMapNodeFill(sales!, {
+        depth_colors: ['#111111', '#222222'],
+        leaf_color: '#ABCDEF',
+      }),
+    ).toBe('#111111');
+    expect(
+      capabilityMapNodeFill(directSales!, {
+        depth_colors: ['#111111', '#222222'],
+        leaf_color: '#ABCDEF',
+      }),
+    ).toBe('#222222');
+    expect(
+      capabilityMapNodeFill(leadCapture!, {
+        depth_colors: ['#111111', '#222222'],
+        leaf_color: '#ABCDEF',
+      }),
+    ).toBe('#ABCDEF');
   });
 
   it('resolves map node clicks to the existing selected capability store state', () => {

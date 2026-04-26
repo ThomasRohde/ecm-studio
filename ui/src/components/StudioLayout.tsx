@@ -14,11 +14,13 @@ import {
   DiagnosticsPanel,
   GitPanel,
   ImportExportPanel,
+  RepositorySettingsPanel,
   WorkspacePanel,
 } from './WorkspacePanels';
 
 const components = {
   workspace: WorkspacePanel,
+  repository_settings: RepositorySettingsPanel,
   tree: CapabilityTreePanel,
   map: CapabilityMapPanel,
   inspector: InspectorPanel,

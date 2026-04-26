@@ -57,6 +57,31 @@ describe('capability map export', () => {
     expect(svg).not.toContain('data-capability-map-node="lead-capture"');
   });
 
+  it('uses configured depth colors and the special leaf color', () => {
+    const layout = layoutCapabilityMap(capabilityModel(), {
+      rootId: CAPABILITY_MAP_ALL_ROOTS,
+      maxDepth: -1,
+    });
+    expect(layout).not.toBeNull();
+
+    const svg = buildCapabilityMapSvgExport({
+      layout: layout!,
+      selectedId: null,
+      rootLabel: 'All roots',
+      maxDepth: -1,
+      workspaceName: 'Demo',
+      generatedAt: GENERATED_AT,
+      colorScheme: {
+        depth_colors: ['#111111', '#222222'],
+        leaf_color: '#ABCDEF',
+      },
+    });
+
+    expect(svg).toMatch(/data-capability-map-node="sales"[^>]*fill="#111111"/);
+    expect(svg).toMatch(/data-capability-map-node="direct-sales"[^>]*fill="#222222"/);
+    expect(svg).toMatch(/data-capability-map-node="lead-capture"[^>]*fill="#ABCDEF"/);
+  });
+
   it('builds self-contained HTML with embedded SVG, controls, and scope metadata', () => {
     const layout = layoutCapabilityMap(capabilityModel(), {
       rootId: 'sales',

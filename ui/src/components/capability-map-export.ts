@@ -1,6 +1,6 @@
-import type { MapExportFormat, MapExportResult } from '../api/types';
+import type { CapabilityMapColorScheme, MapExportFormat, MapExportResult } from '../api/types';
 import type { LayoutNode, LayoutResult } from './capability-map-layout';
-import { DEFAULT_DEPTH_COLORS, DEFAULT_LEAF_COLOR } from './capability-map-layout';
+import { capabilityMapNodeFill } from './capability-map-layout';
 
 const PANEL_BACKGROUND = '#fffdf8';
 const TEXT_COLOR = '#000000';
@@ -26,6 +26,7 @@ export interface CapabilityMapExportContext {
   maxDepth: number;
   workspaceName?: string | null;
   generatedAt?: Date | string;
+  colorScheme?: CapabilityMapColorScheme | null;
 }
 
 export interface SaveCapabilityMapExportOptions extends CapabilityMapExportContext {
@@ -53,7 +54,9 @@ export function buildCapabilityMapSvgExport(context: CapabilityMapExportContext)
     `<title>${escapeXml(EXPORT_TITLE)}</title>`,
     `<desc>${escapeXml(description)}</desc>`,
     `<rect fill="${PANEL_BACKGROUND}" height="${context.layout.totalHeight}" width="${context.layout.totalWidth}" x="0" y="0" />`,
-    roots.map((root) => renderSvgNode(root, context.selectedId ?? null)).join('\n'),
+    roots
+      .map((root) => renderSvgNode(root, context.selectedId ?? null, context.colorScheme))
+      .join('\n'),
   ].join('\n');
 
   return [
@@ -132,11 +135,13 @@ export function capabilityMapDepthLabel(depth: number): string {
   return String(depth);
 }
 
-function renderSvgNode(node: LayoutNode, selectedId: string | null): string {
+function renderSvgNode(
+  node: LayoutNode,
+  selectedId: string | null,
+  colorScheme?: CapabilityMapColorScheme | null,
+): string {
   const isLeaf = node._effectiveLeaf;
-  const fill = isLeaf
-    ? DEFAULT_LEAF_COLOR
-    : DEFAULT_DEPTH_COLORS[Math.min(node.depth, DEFAULT_DEPTH_COLORS.length - 1)];
+  const fill = capabilityMapNodeFill(node, colorScheme);
   const fontSize = isLeaf ? 11 : 13;
   const lineHeight = Math.max(fontSize * 1.2, fontSize + 1);
   const textBoxHeight = isLeaf ? node.size.h : 48;
@@ -151,7 +156,7 @@ function renderSvgNode(node: LayoutNode, selectedId: string | null): string {
     .filter(Boolean)
     .join(' ');
   const childContent = !isLeaf
-    ? node.children.map((child) => renderSvgNode(child, selectedId)).join('\n')
+    ? node.children.map((child) => renderSvgNode(child, selectedId, colorScheme)).join('\n')
     : '';
   const title = node.description ? `${node.name}\n${node.description}` : node.name;
 

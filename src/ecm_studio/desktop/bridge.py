@@ -57,6 +57,10 @@ class BridgeApi:
         return self._services.workspace.rebuild_index()
 
     @envelope
+    def workspace_update_settings(self, patch: dict[str, Any]) -> dict[str, Any]:
+        return self._services.workspace.update_settings(patch)
+
+    @envelope
     def workspace_pick_open(self) -> dict[str, Any] | None:
         path = self._pick_folder()
         if path is None:

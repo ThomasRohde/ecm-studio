@@ -12,7 +12,7 @@ import {
 import { ArrowDownloadRegular, ZoomFitRegular } from '@fluentui/react-icons';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/bridge';
-import type { MapExportFormat } from '../api/types';
+import type { CapabilityMapColorScheme, MapExportFormat } from '../api/types';
 import { errorMessage, notify } from '../notifications/notify';
 import { useAppStore } from '../store/app-store';
 import {
@@ -24,9 +24,9 @@ import type { CapabilityMapRootOption, LayoutNode, LayoutResult } from './capabi
 import {
   CAPABILITY_MAP_ALL_ROOTS,
   capabilityMapById,
+  capabilityMapNodeFill,
   capabilityMapRootOptions,
-  DEFAULT_DEPTH_COLORS,
-  DEFAULT_LEAF_COLOR,
+  DEFAULT_CAPABILITY_MAP_COLOR_SCHEME,
   layoutCapabilityMap,
 } from './capability-map-layout';
 
@@ -38,6 +38,7 @@ const PARENT_FONT = '13px "Segoe UI", system-ui, sans-serif';
 const LEAF_FONT = '11px "Segoe UI", system-ui, sans-serif';
 const SELECTED_STROKE = 'var(--accent)';
 const DEFAULT_STROKE = '#CCCCCC';
+const DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO = 1.7777777778;
 
 export function CapabilityMapPanel() {
   const workspace = useAppStore((state) => state.workspace);
@@ -54,13 +55,23 @@ export function CapabilityMapPanel() {
 
   const capabilityById = useMemo(() => capabilityMapById(tree), [tree]);
   const rootOptions = useMemo(() => capabilityMapRootOptions(tree), [tree]);
+  const targetAspectRatio =
+    workspace?.settings.capability_map.target_aspect_ratio ??
+    DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO;
+  const colorScheme =
+    workspace?.settings.capability_map.color_scheme ?? DEFAULT_CAPABILITY_MAP_COLOR_SCHEME;
   const visibleRootOptions = useMemo(
     () => visibleOptions(rootOptions, rootId, rootQuery),
     [rootOptions, rootId, rootQuery],
   );
   const layout = useMemo(
-    () => layoutCapabilityMap(tree, { rootId, maxDepth }),
-    [tree, rootId, maxDepth],
+    () =>
+      layoutCapabilityMap(tree, {
+        rootId,
+        maxDepth,
+        layoutOptions: { aspectRatio: targetAspectRatio },
+      }),
+    [tree, rootId, maxDepth, targetAspectRatio],
   );
 
   useEffect(() => {
@@ -104,6 +115,7 @@ export function CapabilityMapPanel() {
           rootLabel,
           selectedId: useAppStore.getState().selectedId,
           workspaceName: workspace?.name,
+          colorScheme,
           save: api.map.export,
         });
         if (!result) return;
@@ -127,7 +139,7 @@ export function CapabilityMapPanel() {
         setExportingFormat(null);
       }
     },
-    [layout, maxDepth, rootId, rootOptions, workspace?.name],
+    [colorScheme, layout, maxDepth, rootId, rootOptions, workspace?.name],
   );
 
   const handleWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
@@ -237,6 +249,7 @@ export function CapabilityMapPanel() {
 
       <MapCanvas
         dragging={dragging}
+        colorScheme={colorScheme}
         layout={layout}
         pan={pan}
         scale={scale}
@@ -254,6 +267,7 @@ export function CapabilityMapPanel() {
 
 const MapCanvas = memo(function MapCanvas({
   dragging,
+  colorScheme,
   layout,
   onMouseDown,
   onMouseLeave,
@@ -266,6 +280,7 @@ const MapCanvas = memo(function MapCanvas({
   status,
 }: {
   dragging: boolean;
+  colorScheme: CapabilityMapColorScheme;
   layout: LayoutResult | null;
   onMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void;
   onMouseLeave: () => void;
@@ -302,17 +317,24 @@ const MapCanvas = memo(function MapCanvas({
         className="capability-map-surface"
         style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})` }}
       >
-        <StaticMapSvg layout={layout} onSelectNode={onSelectNode} svgRef={svgRef} />
+        <StaticMapSvg
+          colorScheme={colorScheme}
+          layout={layout}
+          onSelectNode={onSelectNode}
+          svgRef={svgRef}
+        />
       </div>
     </div>
   );
 });
 
 const StaticMapSvg = memo(function StaticMapSvg({
+  colorScheme,
   layout,
   onSelectNode,
   svgRef,
 }: {
+  colorScheme: CapabilityMapColorScheme;
   layout: LayoutResult;
   onSelectNode: (nodeId: string) => void;
   svgRef: React.RefObject<SVGSVGElement | null>;
@@ -347,17 +369,15 @@ const StaticMapSvg = memo(function StaticMapSvg({
         x={0}
         y={0}
       />
-      {roots.map((root) => renderNodeBox(root))}
+      {roots.map((root) => renderNodeBox(root, colorScheme))}
       <SelectedMapHighlight layout={layout} svgRef={svgRef} />
     </svg>
   );
 });
 
-function renderNodeBox(node: LayoutNode): React.JSX.Element {
+function renderNodeBox(node: LayoutNode, colorScheme: CapabilityMapColorScheme): React.JSX.Element {
   const isLeaf = node._effectiveLeaf;
-  const fill = isLeaf
-    ? DEFAULT_LEAF_COLOR
-    : DEFAULT_DEPTH_COLORS[Math.min(node.depth, DEFAULT_DEPTH_COLORS.length - 1)];
+  const fill = capabilityMapNodeFill(node, colorScheme);
   const fontSize = isLeaf ? 11 : 13;
   const lineHeight = Math.max(fontSize * 1.2, fontSize + 1);
   const textBoxHeight = isLeaf ? node.size.h : 48;
@@ -402,7 +422,7 @@ function renderNodeBox(node: LayoutNode): React.JSX.Element {
           </tspan>
         ))}
       </text>
-      {!isLeaf ? node.children.map((child) => renderNodeBox(child)) : null}
+      {!isLeaf ? node.children.map((child) => renderNodeBox(child, colorScheme)) : null}
     </g>
   );
 }

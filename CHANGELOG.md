@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0] - 2026-04-26
+
+- Add repository-scoped capability map settings for target aspect ratio and colors.
+- Add a Repository Settings panel and bridge API for editing workspace-saved settings.
+- Apply configured capability map layout and colors in the live map and exported SVG/HTML.
+- Refresh stress workspace map demo outputs with the new map settings.
+
 ## [0.2.0] - 2026-04-26
 
 - Add persisted Dockview layouts with panel close/reopen controls and default layout reset.

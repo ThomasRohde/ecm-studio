@@ -101,6 +101,15 @@ function workspace(path: string): Workspace {
     path,
     name: 'Demo',
     initialized: true,
+    settings: {
+      capability_map: {
+        target_aspect_ratio: 1.7777777778,
+        color_scheme: {
+          depth_colors: ['#D6E4F0', '#D9EAD3', '#E1D5E7', '#FCE5CD', '#FFF2CC', '#F4CCCC'],
+          leaf_color: '#E8E8E8',
+        },
+      },
+    },
     index_current: true,
     git: gitStatus(),
   };

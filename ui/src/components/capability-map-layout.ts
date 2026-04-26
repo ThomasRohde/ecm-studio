@@ -1,4 +1,4 @@
-import type { Capability } from '../api/types';
+import type { Capability, CapabilityMapColorScheme } from '../api/types';
 
 export const CAPABILITY_MAP_ALL_ROOTS = '__ecm_capability_map_all_roots__';
 
@@ -108,6 +108,32 @@ export const DEFAULT_DEPTH_COLORS = [
 ];
 
 export const DEFAULT_LEAF_COLOR = '#E8E8E8';
+export const DEFAULT_CAPABILITY_MAP_COLOR_SCHEME: CapabilityMapColorScheme = {
+  depth_colors: [...DEFAULT_DEPTH_COLORS],
+  leaf_color: DEFAULT_LEAF_COLOR,
+};
+
+export function normalizeCapabilityMapColorScheme(
+  colorScheme?: Partial<CapabilityMapColorScheme> | null,
+): CapabilityMapColorScheme {
+  const depthColors = colorScheme?.depth_colors?.length
+    ? colorScheme.depth_colors
+    : DEFAULT_DEPTH_COLORS;
+  const leafColor = colorScheme?.leaf_color ?? DEFAULT_LEAF_COLOR;
+  return {
+    depth_colors: [...depthColors],
+    leaf_color: leafColor,
+  };
+}
+
+export function capabilityMapNodeFill(
+  node: Pick<LayoutNode, '_effectiveLeaf' | 'depth'>,
+  colorScheme?: Partial<CapabilityMapColorScheme> | null,
+): string {
+  const normalized = normalizeCapabilityMapColorScheme(colorScheme);
+  if (node._effectiveLeaf) return normalized.leaf_color;
+  return normalized.depth_colors[Math.min(node.depth, normalized.depth_colors.length - 1)];
+}
 
 export function stubMeasureText(text: string): number {
   return text.length * 7;
@@ -622,13 +648,111 @@ function sortChildren(children: LayoutNode[], sortMode: LayoutOptions['sortMode'
 }
 
 function positionRoots(roots: LayoutNode[], options: LayoutOptions): void {
-  let cursorX = options.viewMargin;
-  for (const root of roots) {
-    root.position = { x: cursorX, y: options.viewMargin };
-    root.depth = 0;
-    positionChildren(root, options);
-    cursorX += root.size.w + options.rootGap;
+  const rows = computeRootRows(roots, options);
+  const maxRowWidth = Math.max(...rows.map((row) => row.width), 0);
+  let cursorY = options.viewMargin;
+
+  for (const row of rows) {
+    let cursorX = options.viewMargin + Math.max(0, (maxRowWidth - row.width) / 2);
+    for (const root of row.items) {
+      root.position = { x: cursorX, y: cursorY };
+      root.depth = 0;
+      positionChildren(root, options);
+      cursorX += root.size.w + options.rootGap;
+    }
+    cursorY += row.height + options.rootGap;
   }
+}
+
+function computeRootRows(roots: LayoutNode[], options: LayoutOptions): RowMeta[] {
+  if (roots.length <= 1) {
+    return roots.map((root) => ({
+      items: [root],
+      height: root.size.h,
+      width: root.size.w,
+    }));
+  }
+
+  let bestRows: RowMeta[] | null = null;
+  let bestScore = Infinity;
+
+  for (let count = 1; count <= roots.length; count++) {
+    const rows = packRootRows(roots, rootCandidateWidth(roots, count, options), options);
+    const score = scoreRootRows(rows, options);
+    if (score < bestScore) {
+      bestScore = score;
+      bestRows = rows;
+    }
+  }
+
+  return bestRows ?? [];
+}
+
+function rootCandidateWidth(roots: LayoutNode[], count: number, options: LayoutOptions): number {
+  let width = 0;
+  for (let index = 0; index < count; index++) {
+    if (index > 0) width += options.rootGap;
+    width += roots[index].size.w;
+  }
+  return width;
+}
+
+function packRootRows(
+  roots: LayoutNode[],
+  targetContentWidth: number,
+  options: LayoutOptions,
+): RowMeta[] {
+  const rows: LayoutNode[][] = [];
+  let currentRow: LayoutNode[] = [];
+  let currentRowWidth = 0;
+
+  for (const root of roots) {
+    const needed = currentRow.length > 0 ? options.rootGap + root.size.w : root.size.w;
+    if (currentRow.length > 0 && currentRowWidth + needed > targetContentWidth) {
+      rows.push(currentRow);
+      currentRow = [root];
+      currentRowWidth = root.size.w;
+    } else {
+      currentRow.push(root);
+      currentRowWidth += needed;
+    }
+  }
+  if (currentRow.length > 0) rows.push(currentRow);
+
+  return rows.map((row) => {
+    let width = 0;
+    let height = 0;
+    for (let index = 0; index < row.length; index++) {
+      if (index > 0) width += options.rootGap;
+      width += row[index].size.w;
+      height = Math.max(height, row[index].size.h);
+    }
+    return { items: row, width, height };
+  });
+}
+
+function scoreRootRows(rows: RowMeta[], options: LayoutOptions): number {
+  if (rows.length === 0) return Infinity;
+
+  const contentWidth = Math.max(...rows.map((row) => row.width), 0);
+  const contentHeight =
+    rows.reduce((total, row) => total + row.height, 0) + options.rootGap * (rows.length - 1);
+  const totalWidth = contentWidth + 2 * options.viewMargin;
+  const totalHeight = contentHeight + 2 * options.viewMargin;
+  const aspect = totalWidth / totalHeight;
+  const ratioPenalty = Math.abs(aspect - options.aspectRatio);
+
+  let varianceSum = 0;
+  for (const row of rows) {
+    const fill = contentWidth > 0 ? row.width / contentWidth : 1;
+    varianceSum += (1 - fill) * (1 - fill);
+  }
+  const rowVariance = Math.sqrt(varianceSum / rows.length);
+  const lastRow = rows[rows.length - 1];
+  const lastRowPenalty =
+    rows.length > 1 && contentWidth > 0 ? Math.max(0, 1 - lastRow.width / contentWidth) * 0.35 : 0;
+
+  return ratioPenalty * 3.0 + rowVariance * 1.5 + lastRowPenalty;
 }
 
 function positionChildren(node: LayoutNode, options: LayoutOptions): void {

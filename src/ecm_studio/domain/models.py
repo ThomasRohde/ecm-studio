@@ -7,9 +7,20 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = "1.0"
+DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO = 1.7777777778
+DEFAULT_CAPABILITY_MAP_DEPTH_COLORS = [
+    "#D6E4F0",
+    "#D9EAD3",
+    "#E1D5E7",
+    "#FCE5CD",
+    "#FFF2CC",
+    "#F4CCCC",
+]
+DEFAULT_CAPABILITY_MAP_LEAF_COLOR = "#E8E8E8"
 CapabilityKind = Literal["abstract", "leaf"]
 LifecycleStatus = Literal["Draft", "Active", "Deprecated", "Retired"]
 CapabilityEventAction = Literal["create", "update", "move", "import"]
+HexColor = Annotated[str, Field(pattern=r"^#[0-9A-Fa-f]{6}$")]
 
 
 def now_iso() -> str:
@@ -146,9 +157,29 @@ class PublishEvent(JsonModel):
         return self.model_dump(mode="json", by_alias=True)
 
 
+class CapabilityMapColorScheme(JsonModel):
+    depth_colors: Annotated[list[HexColor], Field(min_length=1, max_length=8)] = Field(
+        default_factory=lambda: [*DEFAULT_CAPABILITY_MAP_DEPTH_COLORS]
+    )
+    leaf_color: HexColor = DEFAULT_CAPABILITY_MAP_LEAF_COLOR
+
+
+class CapabilityMapSettings(JsonModel):
+    target_aspect_ratio: Annotated[
+        float,
+        Field(ge=0.5, le=4.0, allow_inf_nan=False),
+    ] = DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO
+    color_scheme: CapabilityMapColorScheme = Field(default_factory=CapabilityMapColorScheme)
+
+
+class RepositorySettings(JsonModel):
+    capability_map: CapabilityMapSettings = Field(default_factory=CapabilityMapSettings)
+
+
 class WorkspaceConfig(JsonModel):
     record_type: Literal["workspace"] = Field("workspace", alias="_t")
     schema_version: Literal["1.0"] = SCHEMA_VERSION
     name: str
+    settings: RepositorySettings = Field(default_factory=RepositorySettings)
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)

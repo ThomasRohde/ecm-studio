@@ -48,6 +48,7 @@ describe('layout-store view setup helpers', () => {
     expect(api.cleared).toBe(1);
     expect(api.panels.map((panel) => panel.id)).toEqual([
       'workspace',
+      'repository_settings',
       'tree',
       'map',
       'inspector',

@@ -13,6 +13,7 @@ import { api } from '../api/bridge';
 import type {
   AuditEvent,
   BranchIntegrationCandidate,
+  CapabilityMapColorScheme,
   GitGraphData,
   GitStatus,
   ImportMode,
@@ -20,6 +21,7 @@ import type {
   ModelFormat,
   ReleaseBlocker,
   ReleaseStatus,
+  RepositorySettingsPatch,
 } from '../api/types';
 import { errorMessage, notify } from '../notifications/notify';
 import { useAppStore } from '../store/app-store';
@@ -33,7 +35,18 @@ import {
   workspaceDetails,
   workspaceRefreshTaskOptions,
 } from '../workspace/workspace-refresh';
+import { DEFAULT_CAPABILITY_MAP_COLOR_SCHEME } from './capability-map-layout';
 import { GitBadges } from './GitBadges';
+
+const DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO = 1.7777777778;
+const CAPABILITY_MAP_RATIO_PRESETS = [
+  { label: '16:9', value: DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO },
+  { label: '4:3', value: 4 / 3 },
+  { label: '3:2', value: 1.5 },
+  { label: '1:1', value: 1 },
+  { label: '2:1', value: 2 },
+];
+const CUSTOM_RATIO_VALUE = 'custom';
 
 export function WorkspacePanel() {
   const workspace = useAppStore((s) => s.workspace);
@@ -221,6 +234,206 @@ export function WorkspacePanel() {
       )}
     </section>
   );
+}
+
+export function RepositorySettingsPanel() {
+  const workspace = useAppStore((s) => s.workspace);
+  const setWorkspace = useAppStore((s) => s.setWorkspace);
+  const savedSettings = workspace?.settings.capability_map;
+  const savedRatio =
+    savedSettings?.target_aspect_ratio ?? DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO;
+  const savedRatioPresetValue = matchingRatioPresetValue(savedRatio);
+  const savedColorScheme = savedSettings?.color_scheme ?? DEFAULT_CAPABILITY_MAP_COLOR_SCHEME;
+  const [ratioPresetValue, setRatioPresetValue] = useState(savedRatioPresetValue);
+  const [colorScheme, setColorScheme] = useState<CapabilityMapColorScheme>(() =>
+    cloneCapabilityMapColorScheme(savedColorScheme),
+  );
+
+  useEffect(() => {
+    setRatioPresetValue(savedRatioPresetValue);
+    setColorScheme(cloneCapabilityMapColorScheme(savedColorScheme));
+  }, [savedRatioPresetValue, savedColorScheme, workspace?.path]);
+
+  const selectedRatio =
+    ratioPresetValue === CUSTOM_RATIO_VALUE ? savedRatio : Number(ratioPresetValue);
+  const ratioDirty =
+    ratioPresetValue !== CUSTOM_RATIO_VALUE && Math.abs(selectedRatio - savedRatio) > 0.000001;
+  const colorDirty = !sameCapabilityMapColorScheme(colorScheme, savedColorScheme);
+  const dirty = ratioDirty || colorDirty;
+
+  async function saveRepositorySettings() {
+    if (!workspace) return;
+    const patch: RepositorySettingsPatch = {
+      capability_map: {
+        target_aspect_ratio: selectedRatio,
+        color_scheme: cloneCapabilityMapColorScheme(colorScheme),
+      },
+    };
+    try {
+      const updated = await api.workspace.updateSettings(patch);
+      setWorkspace(updated);
+      notify.success({
+        intent: 'workspace.settings.updated',
+        title: 'Repository settings saved',
+        body: workspace.name,
+        source: 'workspace',
+        dedupeKey: `workspace.settings.${workspace.path}`,
+        action: { label: 'Open repository settings', panelId: 'repository_settings' },
+      });
+    } catch (error) {
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not save repository settings',
+        body: errorMessage(error),
+        source: 'workspace',
+        dedupeKey: `workspace.settings.${workspace.path}`,
+        action: { label: 'Open repository settings', panelId: 'repository_settings' },
+      });
+    }
+  }
+
+  return (
+    <section className="panel stack repository-settings-panel">
+      <Text weight="semibold">Repository Settings</Text>
+      {!workspace ? <Text>Open or initialize a workspace first.</Text> : null}
+
+      <div className="card repository-settings-card">
+        <Text weight="semibold">Capability Map</Text>
+        <label className="field-label">
+          Target aspect ratio preset
+          <select
+            className="select"
+            disabled={!workspace}
+            value={ratioPresetValue}
+            onChange={(event) => setRatioPresetValue(event.target.value)}
+          >
+            {CAPABILITY_MAP_RATIO_PRESETS.map((preset) => (
+              <option key={preset.label} value={String(preset.value)}>
+                {preset.label}
+              </option>
+            ))}
+            {ratioPresetValue === CUSTOM_RATIO_VALUE ? (
+              <option value={CUSTOM_RATIO_VALUE}>Custom</option>
+            ) : null}
+          </select>
+        </label>
+
+        <div className="settings-color-section">
+          <Text size={200} weight="semibold">
+            Capability colors
+          </Text>
+          <div className="color-settings-grid">
+            {colorScheme.depth_colors.map((color, index) => (
+              <label className="color-swatch-field" key={`depth-${index}`}>
+                <span>Depth {index}</span>
+                <input
+                  aria-label={`Capability map depth ${index} color`}
+                  className="color-input"
+                  disabled={!workspace}
+                  onChange={(event) =>
+                    setColorScheme((current) =>
+                      updateDepthColor(current, index, event.target.value),
+                    )
+                  }
+                  type="color"
+                  value={colorInputValue(color)}
+                />
+                <span className="color-value">{formatColor(color)}</span>
+              </label>
+            ))}
+            <label className="color-swatch-field">
+              <span>Leaf</span>
+              <input
+                aria-label="Capability map leaf color"
+                className="color-input"
+                disabled={!workspace}
+                onChange={(event) =>
+                  setColorScheme((current) => ({
+                    ...current,
+                    leaf_color: event.target.value,
+                  }))
+                }
+                type="color"
+                value={colorInputValue(colorScheme.leaf_color)}
+              />
+              <span className="color-value">{formatColor(colorScheme.leaf_color)}</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="toolbar">
+          <Button
+            appearance="primary"
+            disabled={!workspace || !dirty}
+            onClick={() => void saveRepositorySettings()}
+          >
+            Save
+          </Button>
+          <Button
+            disabled={
+              !workspace ||
+              sameCapabilityMapColorScheme(colorScheme, DEFAULT_CAPABILITY_MAP_COLOR_SCHEME)
+            }
+            onClick={() =>
+              setColorScheme(cloneCapabilityMapColorScheme(DEFAULT_CAPABILITY_MAP_COLOR_SCHEME))
+            }
+          >
+            Reset colors
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function matchingRatioPresetValue(value: number): string {
+  const match = CAPABILITY_MAP_RATIO_PRESETS.find(
+    (preset) => Math.abs(preset.value - value) <= 0.000001,
+  );
+  return match ? String(match.value) : CUSTOM_RATIO_VALUE;
+}
+
+function cloneCapabilityMapColorScheme(
+  colorScheme: CapabilityMapColorScheme,
+): CapabilityMapColorScheme {
+  return {
+    depth_colors: [...colorScheme.depth_colors],
+    leaf_color: colorScheme.leaf_color,
+  };
+}
+
+function updateDepthColor(
+  colorScheme: CapabilityMapColorScheme,
+  index: number,
+  color: string,
+): CapabilityMapColorScheme {
+  return {
+    ...colorScheme,
+    depth_colors: colorScheme.depth_colors.map((current, currentIndex) =>
+      currentIndex === index ? color : current,
+    ),
+  };
+}
+
+function sameCapabilityMapColorScheme(
+  left: CapabilityMapColorScheme,
+  right: CapabilityMapColorScheme,
+): boolean {
+  return (
+    left.leaf_color.toLowerCase() === right.leaf_color.toLowerCase() &&
+    left.depth_colors.length === right.depth_colors.length &&
+    left.depth_colors.every(
+      (color, index) => color.toLowerCase() === right.depth_colors[index]?.toLowerCase(),
+    )
+  );
+}
+
+function colorInputValue(color: string): string {
+  return /^#[0-9A-Fa-f]{6}$/.test(color) ? color : '#000000';
+}
+
+function formatColor(color: string): string {
+  return color.toUpperCase();
 }
 
 export function ImportExportPanel() {

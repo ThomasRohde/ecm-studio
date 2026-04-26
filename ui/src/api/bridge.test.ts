@@ -17,7 +17,7 @@ describe('bridge mock fallback', () => {
   it('returns app info without pywebview', async () => {
     const appInfo = await api.app.info();
 
-    expect(appInfo).toEqual({ name: 'ECM Studio', version: '0.2.0' });
+    expect(appInfo).toEqual({ name: 'ECM Studio', version: '0.3.0' });
   });
 
   it('uses the pywebview API when it is available', async () => {
@@ -48,8 +48,44 @@ describe('bridge mock fallback', () => {
     const tree = await api.capabilities.listTree();
 
     expect(workspace.name).toBe('Demo');
+    expect(workspace.settings.capability_map.target_aspect_ratio).toBe(1.7777777778);
+    expect(workspace.settings.capability_map.color_scheme).toEqual({
+      depth_colors: ['#D6E4F0', '#D9EAD3', '#E1D5E7', '#FCE5CD', '#FFF2CC', '#F4CCCC'],
+      leaf_color: '#E8E8E8',
+    });
     expect(root.name).toBe('Payments');
     expect(tree[0].name).toBe('Payments');
+  });
+
+  it('updates repository settings through the workspace mock', async () => {
+    const suffix = String(Date.now());
+    await api.workspace.init(`C:/tmp/ecm-settings-${suffix}`, 'Settings');
+
+    const workspace = await api.workspace.updateSettings({
+      capability_map: {
+        target_aspect_ratio: 1.5,
+        color_scheme: {
+          depth_colors: ['#112233', '#445566'],
+          leaf_color: '#778899',
+        },
+      },
+    });
+
+    expect(workspace.settings.capability_map.target_aspect_ratio).toBe(1.5);
+    expect(workspace.settings.capability_map.color_scheme).toEqual({
+      depth_colors: ['#112233', '#445566'],
+      leaf_color: '#778899',
+    });
+
+    const updated = await api.workspace.updateSettings({
+      capability_map: { color_scheme: { leaf_color: '#AABBCC' } },
+    });
+
+    expect(updated.settings.capability_map.color_scheme.depth_colors).toEqual([
+      '#112233',
+      '#445566',
+    ]);
+    expect(updated.settings.capability_map.color_scheme.leaf_color).toBe('#AABBCC');
   });
 
   it('supports theme, picker, import/export, and guided git mocks', async () => {

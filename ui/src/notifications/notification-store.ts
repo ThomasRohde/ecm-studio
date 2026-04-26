@@ -7,6 +7,7 @@ export type ToastIntent =
   | 'workspace.opened'
   | 'workspace.created'
   | 'workspace.index.rebuilt'
+  | 'workspace.settings.updated'
   | 'capability.created'
   | 'capability.updated'
   | 'capability.moved'

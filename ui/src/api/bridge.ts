@@ -4,6 +4,7 @@ import type {
   AuditEvent,
   BranchIntegrationCandidate,
   Capability,
+  CapabilityMapColorScheme,
   CapabilityPatch,
   Checkpoint,
   Diagnostic,
@@ -21,6 +22,8 @@ import type {
   ReleaseResult,
   ReleaseStatus,
   ReleaseSummary,
+  RepositorySettings,
+  RepositorySettingsPatch,
   SearchResult,
   SettingsPatch,
   ThemeMode,
@@ -36,6 +39,17 @@ declare global {
 }
 
 const PYWEBVIEW_READY_TIMEOUT_MS = 5000;
+const DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO = 1.7777777778;
+const DEFAULT_CAPABILITY_MAP_DEPTH_COLORS = [
+  '#D6E4F0',
+  '#D9EAD3',
+  '#E1D5E7',
+  '#FCE5CD',
+  '#FFF2CC',
+  '#F4CCCC',
+];
+const DEFAULT_CAPABILITY_MAP_LEAF_COLOR = '#E8E8E8';
+const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 
 const mockGitStatus = (): GitStatus => ({
   is_repo: true,
@@ -77,6 +91,51 @@ const mockState: {
   latestRelease: null,
   audit: [],
 };
+
+function defaultRepositorySettings(): RepositorySettings {
+  return {
+    capability_map: {
+      target_aspect_ratio: DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO,
+      color_scheme: defaultCapabilityMapColorScheme(),
+    },
+  };
+}
+
+function defaultCapabilityMapColorScheme(): CapabilityMapColorScheme {
+  return {
+    depth_colors: [...DEFAULT_CAPABILITY_MAP_DEPTH_COLORS],
+    leaf_color: DEFAULT_CAPABILITY_MAP_LEAF_COLOR,
+  };
+}
+
+function normalizeRepositorySettings(settings?: RepositorySettings | null): RepositorySettings {
+  const defaults = defaultRepositorySettings();
+  return {
+    capability_map: {
+      ...defaults.capability_map,
+      ...settings?.capability_map,
+      color_scheme: {
+        ...defaults.capability_map.color_scheme,
+        ...settings?.capability_map?.color_scheme,
+        depth_colors: settings?.capability_map?.color_scheme?.depth_colors?.length
+          ? [...settings.capability_map.color_scheme.depth_colors]
+          : defaults.capability_map.color_scheme.depth_colors,
+      },
+    },
+  };
+}
+
+function validateCapabilityMapColorScheme(colorScheme: CapabilityMapColorScheme) {
+  if (colorScheme.depth_colors.length < 1 || colorScheme.depth_colors.length > 8) {
+    throw new Error('VALIDATION_FAILED: Capability map depth colors must contain 1 to 8 colors.');
+  }
+  if (!colorScheme.depth_colors.every((color) => HEX_COLOR_RE.test(color))) {
+    throw new Error('VALIDATION_FAILED: Capability map depth colors must be #RRGGBB values.');
+  }
+  if (!HEX_COLOR_RE.test(colorScheme.leaf_color)) {
+    throw new Error('VALIDATION_FAILED: Capability map leaf color must be a #RRGGBB value.');
+  }
+}
 
 async function call<T>(method: string, ...args: unknown[]): Promise<T> {
   const pywebviewApi = await resolvePywebviewApi(method);
@@ -136,7 +195,7 @@ function waitForPywebviewApi(method: string): Promise<void> {
 }
 
 async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
-  if (method === 'app_info') return { name: 'ECM Studio', version: '0.2.0' } as T;
+  if (method === 'app_info') return { name: 'ECM Studio', version: '0.3.0' } as T;
   if (method === 'settings_get') return mockState.settings as T;
   if (method === 'settings_update') {
     const patch = args[0] as SettingsPatch;
@@ -156,6 +215,7 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
       path: String(args[0]),
       name: String(args[1] || 'Demo Workspace'),
       initialized: true,
+      settings: defaultRepositorySettings(),
       index_current: true,
       git: mockState.git,
     };
@@ -173,16 +233,57 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
         path: String(args[0] || 'C:\\Mock\\ECM Workspace'),
         name: 'Demo Workspace',
         initialized: true,
+        settings: defaultRepositorySettings(),
         index_current: true,
         git: mockState.git,
       };
       rememberWorkspace(mockState.workspace.path);
     }
     mockState.workspace.git = mockState.git;
+    mockState.workspace.settings = normalizeRepositorySettings(mockState.workspace.settings);
     return mockState.workspace as T;
   }
   if (method === 'workspace_rebuild_index')
     return { capability_count: mockState.capabilities.length, source_hash: 'mock' } as T;
+  if (method === 'workspace_update_settings') {
+    const workspace = await mockCall<Workspace>('workspace_status', []);
+    const patch = args[0] as RepositorySettingsPatch;
+    const targetAspectRatio = patch.capability_map?.target_aspect_ratio;
+    const colorSchemePatch = patch.capability_map?.color_scheme;
+    if (targetAspectRatio !== undefined) {
+      if (!Number.isFinite(targetAspectRatio) || targetAspectRatio < 0.5 || targetAspectRatio > 4) {
+        throw new Error(
+          'VALIDATION_FAILED: Capability map target aspect ratio must be between 0.5 and 4.0.',
+        );
+      }
+      workspace.settings = {
+        ...workspace.settings,
+        capability_map: {
+          ...workspace.settings.capability_map,
+          target_aspect_ratio: targetAspectRatio,
+        },
+      };
+    }
+    if (colorSchemePatch !== undefined) {
+      const colorScheme = {
+        ...workspace.settings.capability_map.color_scheme,
+        ...colorSchemePatch,
+      };
+      if (colorSchemePatch.depth_colors !== undefined) {
+        colorScheme.depth_colors = [...colorSchemePatch.depth_colors];
+      }
+      validateCapabilityMapColorScheme(colorScheme);
+      workspace.settings = {
+        ...workspace.settings,
+        capability_map: {
+          ...workspace.settings.capability_map,
+          color_scheme: colorScheme,
+        },
+      };
+    }
+    mockState.workspace = workspace;
+    return workspace as T;
+  }
   if (method === 'capabilities_create') {
     const input = args[0] as Partial<Capability>;
     const capability: Capability = {
@@ -660,6 +761,8 @@ export const api = {
     status: () => call<Workspace>('workspace_status'),
     rebuildIndex: () =>
       call<{ capability_count: number; source_hash: string }>('workspace_rebuild_index'),
+    updateSettings: (patch: RepositorySettingsPatch) =>
+      call<Workspace>('workspace_update_settings', patch),
   },
   capabilities: {
     listTree: () => call<Capability[]>('capabilities_list_tree'),

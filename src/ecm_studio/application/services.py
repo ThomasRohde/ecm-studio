@@ -29,6 +29,8 @@ from ecm_studio.domain.models import (
     CapabilityPatch,
     ModelEvent,
     PublishEvent,
+    RepositorySettings,
+    WorkspaceConfig,
     now_iso,
 )
 from ecm_studio.infrastructure.events import EventRepository
@@ -139,6 +141,30 @@ class WorkspaceService:
         workspace = self.context.require_workspace()
         return SQLiteProjection(workspace).rebuild().to_dict()
 
+    def update_settings(self, patch: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(patch, dict):
+            raise ValidationFailed("Repository settings patch must be an object.")
+
+        workspace = self.context.require_workspace()
+        config = workspace.load_config()
+        settings_data = config.settings.model_dump(mode="json")
+        settings_data = _merge_repository_settings_patch(settings_data, patch)
+
+        try:
+            next_settings = RepositorySettings.model_validate(settings_data)
+            next_config = WorkspaceConfig.model_validate(
+                {
+                    **config.model_dump(mode="json", by_alias=True),
+                    "settings": next_settings.model_dump(mode="json"),
+                    "updated_at": now_iso(),
+                }
+            )
+        except ValidationError as exc:
+            raise ValidationFailed("Invalid repository settings.", exc.errors()) from exc
+
+        workspace.write_config(next_config)
+        return self._dto(workspace, None)
+
     def _dto(
         self,
         workspace: WorkspaceRepository,
@@ -151,6 +177,7 @@ class WorkspaceService:
             "path": str(workspace.root),
             "name": config.name,
             "initialized": True,
+            "settings": config.settings.model_dump(mode="json"),
             "index_current": index_current,
             "rebuild": rebuild,
             "git": git_status,
@@ -1036,6 +1063,62 @@ def _sanitize_capability_patch(patch_data: dict[str, Any]) -> dict[str, Any]:
         for key, value in patch_data.items()
         if key in allowed and (value is not None or key in {"effective_from", "effective_to"})
     }
+
+
+def _merge_repository_settings_patch(
+    settings_data: dict[str, Any],
+    patch: dict[str, Any],
+) -> dict[str, Any]:
+    unknown = set(patch) - {"capability_map"}
+    if unknown:
+        raise ValidationFailed(
+            "Invalid repository settings.",
+            [{"field": field, "message": "Unknown settings field."} for field in sorted(unknown)],
+        )
+
+    result = {**settings_data}
+    if "capability_map" in patch:
+        capability_map_patch = patch["capability_map"]
+        if not isinstance(capability_map_patch, dict):
+            raise ValidationFailed("Capability map settings must be an object.")
+        unknown_map_fields = set(capability_map_patch) - {
+            "target_aspect_ratio",
+            "color_scheme",
+        }
+        if unknown_map_fields:
+            raise ValidationFailed(
+                "Invalid capability map settings.",
+                [
+                    {"field": field, "message": "Unknown capability map settings field."}
+                    for field in sorted(unknown_map_fields)
+                ],
+            )
+        current_map = result.get("capability_map")
+        if not isinstance(current_map, dict):
+            current_map = {}
+        next_map = {**current_map, **capability_map_patch}
+        if "color_scheme" in capability_map_patch:
+            color_scheme_patch = capability_map_patch["color_scheme"]
+            if not isinstance(color_scheme_patch, dict):
+                raise ValidationFailed("Capability map color scheme must be an object.")
+            unknown_color_fields = set(color_scheme_patch) - {
+                "depth_colors",
+                "leaf_color",
+            }
+            if unknown_color_fields:
+                raise ValidationFailed(
+                    "Invalid capability map color scheme.",
+                    [
+                        {"field": field, "message": "Unknown color scheme field."}
+                        for field in sorted(unknown_color_fields)
+                    ],
+                )
+            current_color_scheme = current_map.get("color_scheme")
+            if not isinstance(current_color_scheme, dict):
+                current_color_scheme = {}
+            next_map["color_scheme"] = {**current_color_scheme, **color_scheme_patch}
+        result["capability_map"] = next_map
+    return result
 
 
 def _patch_has_changes(capability: Capability, patch: dict[str, Any]) -> bool:

@@ -5,6 +5,7 @@ import type { ViewSetup } from '../api/types';
 export type PanelGroup = 'Workspace' | 'Model' | 'Operations';
 export type PanelId =
   | 'workspace'
+  | 'repository_settings'
   | 'tree'
   | 'map'
   | 'inspector'
@@ -28,6 +29,13 @@ export const PANEL_DEFS: PanelDef[] = [
     title: 'Workspace',
     group: 'Workspace',
     description: 'Open, initialize, and rebuild an ECM workspace.',
+  },
+  {
+    id: 'repository_settings',
+    component: 'repository_settings',
+    title: 'Repository Settings',
+    group: 'Workspace',
+    description: 'Edit settings saved with the current ECM workspace.',
   },
   {
     id: 'tree',
@@ -113,6 +121,12 @@ function addDefaultPanels(api: DockviewApi): void {
     id: 'workspace',
     component: 'workspace',
     title: 'Workspace',
+  });
+  api.addPanel({
+    id: 'repository_settings',
+    component: 'repository_settings',
+    title: 'Repository Settings',
+    position: { referencePanel: workspace, direction: 'within' },
   });
   const tree = api.addPanel({
     id: 'tree',
