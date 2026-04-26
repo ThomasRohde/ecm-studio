@@ -7,6 +7,9 @@ import type { AuditEvent, BranchIntegrationCandidate, Checkpoint, GitGraphData, 
 import { notify, errorMessage } from '../notifications/notify';
 import { useAppStore } from '../store/app-store';
 import { useSettingsStore } from '../store/settings-store';
+import { blockingTask } from '../tasks/blocking-task-store';
+import type { BlockingTaskOptions } from '../tasks/blocking-task-store';
+import { gitBlockingTaskOptions } from '../tasks/git-blocking-tasks';
 import { GitBadges } from './GitBadges';
 
 async function refreshModelState() {
@@ -434,9 +437,14 @@ export function GitPanel() {
       dedupeKey: string;
     },
     errorTitle: string,
+    task: BlockingTaskOptions,
   ) {
     try {
-      const result = await action();
+      const result = await blockingTask.run(async () => {
+        const nextResult = await action();
+        await refresh();
+        return nextResult;
+      }, task);
       const body = typeof success.body === 'function' ? success.body(result) : success.body;
       notify.success({
         intent: success.intent,
@@ -457,8 +465,6 @@ export function GitPanel() {
       });
       return;
     }
-
-    await refresh();
   }
 
   async function checkpoint() {
@@ -472,6 +478,7 @@ export function GitPanel() {
         dedupeKey: `git.checkpoint.${branch}`,
       },
       'Could not create checkpoint',
+      gitBlockingTaskOptions('checkpoint', `Branch: ${branch}`),
     );
   }
 
@@ -485,6 +492,7 @@ export function GitPanel() {
         dedupeKey: `git.branch.${branchName}`,
       },
       'Could not create scenario',
+      gitBlockingTaskOptions('createBranch', `Scenario: ${branchName}`),
     );
   }
 
@@ -498,6 +506,7 @@ export function GitPanel() {
         dedupeKey: `git.switch.${contextBranch}`,
       },
       'Could not change scenario',
+      gitBlockingTaskOptions('switchBranch', `Scenario: ${contextBranch}`),
     );
   }
 
@@ -512,6 +521,7 @@ export function GitPanel() {
         dedupeKey: `git.pull.${branch}`,
       },
       'Could not receive updates',
+      gitBlockingTaskOptions('pull', `Branch: ${branch}`),
     );
   }
 
@@ -526,6 +536,7 @@ export function GitPanel() {
         dedupeKey: `git.merge.${integrationBranch}`,
       },
       'Could not integrate scenario',
+      gitBlockingTaskOptions('mergeBranch', `Source: ${integrationBranch}\nTarget: ${target}`),
     );
   }
 
@@ -540,6 +551,7 @@ export function GitPanel() {
         dedupeKey: `git.merge.abort.${branch}`,
       },
       'Could not abort integration',
+      gitBlockingTaskOptions('abortMerge', `Branch: ${branch}`),
     );
   }
 
@@ -554,6 +566,7 @@ export function GitPanel() {
         dedupeKey: `release.cut.${releaseVersion}`,
       },
       'Could not cut release',
+      gitBlockingTaskOptions('cutRelease', `Version: ${releaseVersion}\nTag: ${releaseTagForVersion(releaseVersion)}`),
     );
   }
 
@@ -570,6 +583,7 @@ export function GitPanel() {
         dedupeKey: `release.publish.${tag}`,
       },
       'Could not publish release',
+      gitBlockingTaskOptions('publishRelease', `Tag: ${tag}`),
     );
   }
 

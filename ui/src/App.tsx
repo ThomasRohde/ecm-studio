@@ -8,6 +8,7 @@ import { NotificationCenter, NotificationCenterButton } from './notifications/No
 import { ToastHost } from './notifications/ToastHost';
 import { useAppStore } from './store/app-store';
 import { applyTheme, useSettingsStore } from './store/settings-store';
+import { BlockingTaskDialog } from './tasks/BlockingTaskDialog';
 
 export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -51,6 +52,7 @@ export function App() {
         <AppMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
         <NotificationCenter />
         <ToastHost />
+        <BlockingTaskDialog />
       </main>
     </FluentProvider>
   );

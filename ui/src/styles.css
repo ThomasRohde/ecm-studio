@@ -950,6 +950,59 @@ body {
   font-size: 12px;
 }
 
+.blocking-task-surface {
+  max-width: min(440px, calc(100vw - 32px));
+  border: 1px solid var(--panel-border);
+  background: var(--panel-bg);
+  color: var(--app-fg);
+}
+
+.blocking-task-surface.release {
+  border-top: 4px solid var(--accent);
+}
+
+.blocking-task-surface.git {
+  border-top: 4px solid #107c10;
+}
+
+.blocking-task-content {
+  display: grid;
+  gap: 14px;
+  min-width: min(360px, calc(100vw - 80px));
+}
+
+.blocking-task-step {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.blocking-task-details {
+  border-top: 1px solid var(--panel-border);
+  padding-top: 10px;
+}
+
+.blocking-task-details summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.blocking-task-details pre {
+  max-height: 140px;
+  margin: 10px 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--muted-fg);
+  font-family: "Segoe UI", sans-serif;
+  font-size: 12px;
+}
+
 @media (max-width: 900px) {
   .git-badges.compact .git-badge-label {
     display: none;
