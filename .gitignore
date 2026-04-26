@@ -20,6 +20,7 @@ dist/
 src/ecm_studio/assets/ui/
 
 # ECM runtime state
+.ecms/
 .ecm-studio/
 *.sqlite
 *.sqlite-shm

@@ -48,7 +48,10 @@ export function isCapabilityDescendant(
   return false;
 }
 
-export function getValidParentCandidates(nodes: Capability[], draft: Capability | null): Capability[] {
+export function getValidParentCandidates(
+  nodes: Capability[],
+  draft: Capability | null,
+): Capability[] {
   if (!draft) return [];
   const flat = flattenCapabilities(nodes);
   const descendants = new Set<string>();
@@ -62,9 +65,7 @@ export function getValidParentCandidates(nodes: Capability[], draft: Capability 
   }
 
   collectDescendants(treeDraft);
-  return flat.filter((capability) => (
-    capability.id !== draft.id && !descendants.has(capability.id)
-  ));
+  return flat.filter((capability) => capability.id !== draft.id && !descendants.has(capability.id));
 }
 
 export function parentOptionValue(parentId: string | null | undefined): string {
@@ -76,12 +77,17 @@ export function parentIdFromOptionValue(value: string | undefined): string | nul
   return value;
 }
 
-export function parentOptionLabel(parentId: string | null | undefined, candidates: Capability[]): string {
+export function parentOptionLabel(
+  parentId: string | null | undefined,
+  candidates: Capability[],
+): string {
   if (!parentId) return 'Top level';
   return candidates.find((candidate) => candidate.id === parentId)?.name ?? 'Unknown parent';
 }
 
-export function buildCapabilityTreeItems(nodes: Capability[]): Record<string, CapabilityTreeItemData> {
+export function buildCapabilityTreeItems(
+  nodes: Capability[],
+): Record<string, CapabilityTreeItemData> {
   const items: Record<string, CapabilityTreeItemData> = {
     [CAPABILITY_TREE_ROOT_ID]: {
       id: CAPABILITY_TREE_ROOT_ID,
@@ -115,9 +121,13 @@ export function reconcileExpandedCapabilityItems(
   nodes: Capability[],
   extraExpandedItems: string[] = [],
 ): string[] {
-  const validIds = new Set([CAPABILITY_TREE_ROOT_ID, ...flattenCapabilities(nodes).map((node) => node.id)]);
-  const next = [CAPABILITY_TREE_ROOT_ID, ...expandedItems, ...extraExpandedItems]
-    .filter((id) => validIds.has(id));
+  const validIds = new Set([
+    CAPABILITY_TREE_ROOT_ID,
+    ...flattenCapabilities(nodes).map((node) => node.id),
+  ]);
+  const next = [CAPABILITY_TREE_ROOT_ID, ...expandedItems, ...extraExpandedItems].filter((id) =>
+    validIds.has(id),
+  );
   return [...new Set(next)];
 }
 

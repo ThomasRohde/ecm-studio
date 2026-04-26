@@ -1,7 +1,7 @@
 import { Button, Text } from '@fluentui/react-components';
 import { api } from '../api/bridge';
 import type { ThemeMode } from '../api/types';
-import { notify, errorMessage } from '../notifications/notify';
+import { errorMessage, notify } from '../notifications/notify';
 import { useAppStore } from '../store/app-store';
 import { PANEL_DEFS, type PanelGroup, useLayoutStore } from '../store/layout-store';
 import { useSettingsStore } from '../store/settings-store';
@@ -20,12 +20,14 @@ const GROUPS: PanelGroup[] = ['Workspace', 'Model', 'Operations'];
 
 export function AppMenu({ open, onClose }: AppMenuProps) {
   const openPanel = useLayoutStore((state) => state.openPanel);
+  const closePanel = useLayoutStore((state) => state.closePanel);
   const resetLayout = useLayoutStore((state) => state.resetLayout);
   const openPanelIds = useLayoutStore((state) => state.openPanelIds);
   const setDiagnostics = useAppStore((state) => state.setDiagnostics);
   const workspace = useAppStore((state) => state.workspace);
   const settings = useSettingsStore((state) => state.settings);
   const setThemeMode = useSettingsStore((state) => state.setThemeMode);
+  const setViewSetup = useSettingsStore((state) => state.setViewSetup);
 
   if (!open) return null;
 
@@ -94,6 +96,28 @@ export function AppMenu({ open, onClose }: AppMenuProps) {
     }
   }
 
+  async function resetViewLayout() {
+    const result = resetLayout(null);
+    if (!result) return;
+
+    try {
+      await setViewSetup(null);
+      notify.info({
+        title: 'Default layout restored',
+        source: 'workspace',
+        dedupeKey: 'layout.reset.default',
+      });
+      onClose();
+    } catch (error) {
+      notify.error({
+        title: 'Could not save layout reset',
+        body: errorMessage(error),
+        source: 'workspace',
+        dedupeKey: 'layout.reset.failed',
+      });
+    }
+  }
+
   return (
     <>
       <button
@@ -115,13 +139,7 @@ export function AppMenu({ open, onClose }: AppMenuProps) {
 
         <section className="menu-section">
           <Text className="menu-section-title">Layout</Text>
-          <Button
-            appearance="primary"
-            onClick={() => {
-              resetLayout();
-              onClose();
-            }}
-          >
+          <Button appearance="primary" onClick={() => void resetViewLayout()}>
             Reset default layout
           </Button>
         </section>
@@ -153,7 +171,8 @@ export function AppMenu({ open, onClose }: AppMenuProps) {
                     className="menu-view-button"
                     key={panel.id}
                     onClick={() => {
-                      openPanel(panel.id);
+                      if (isOpen) closePanel(panel.id);
+                      else openPanel(panel.id);
                       onClose();
                     }}
                     type="button"
@@ -162,7 +181,7 @@ export function AppMenu({ open, onClose }: AppMenuProps) {
                       <strong>{panel.title}</strong>
                       <small>{panel.description}</small>
                     </span>
-                    <em>{isOpen ? 'Open' : 'Closed'}</em>
+                    <em>{isOpen ? 'Close' : 'Open'}</em>
                   </button>
                 );
               })}

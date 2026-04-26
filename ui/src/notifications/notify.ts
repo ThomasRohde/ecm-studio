@@ -1,6 +1,6 @@
 import { useAppStore } from '../store/app-store';
-import { useNotificationStore } from './notification-store';
 import type { AppToast, AppToastUpdate, ToastIntent, ToastKind } from './notification-store';
+import { useNotificationStore } from './notification-store';
 
 type NotifyInput = Omit<AppToast, 'id' | 'kind' | 'intent'> & {
   id?: string;
@@ -55,10 +55,11 @@ export const notify = {
 
   warning: (input: NotifyInput) => show('warning', input),
 
-  progress: (input: PromiseToastInput) => show('progress', {
-    ...input,
-    intent: input.intent ?? 'operation.progress',
-  }),
+  progress: (input: PromiseToastInput) =>
+    show('progress', {
+      ...input,
+      intent: input.intent ?? 'operation.progress',
+    }),
 
   error: (input: NotifyInput) => {
     const id = show('error', {
@@ -70,14 +71,12 @@ export const notify = {
     return id;
   },
 
-  promise: async <T>(
-    run: () => Promise<T>,
-    options: PromiseToastOptions<T>,
-  ): Promise<T> => {
+  promise: async <T>(run: () => Promise<T>, options: PromiseToastOptions<T>): Promise<T> => {
     const id = notify.progress(options.loading);
     try {
       const result = await run();
-      const success = typeof options.success === 'function' ? options.success(result) : options.success;
+      const success =
+        typeof options.success === 'function' ? options.success(result) : options.success;
       update(id, 'success', success);
       return result;
     } catch (error) {

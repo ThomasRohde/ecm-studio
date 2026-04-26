@@ -1,9 +1,6 @@
 import type { MapExportFormat, MapExportResult } from '../api/types';
-import {
-  DEFAULT_DEPTH_COLORS,
-  DEFAULT_LEAF_COLOR,
-} from './capability-map-layout';
 import type { LayoutNode, LayoutResult } from './capability-map-layout';
+import { DEFAULT_DEPTH_COLORS, DEFAULT_LEAF_COLOR } from './capability-map-layout';
 
 const PANEL_BACKGROUND = '#fffdf8';
 const TEXT_COLOR = '#000000';
@@ -69,8 +66,10 @@ export function buildCapabilityMapSvgExport(context: CapabilityMapExportContext)
 
 export function buildCapabilityMapHtmlExport(context: CapabilityMapExportContext): string {
   const generatedAt = formatGeneratedAt(context.generatedAt);
-  const svg = buildCapabilityMapSvgExport(context)
-    .replace('<?xml version="1.0" encoding="UTF-8"?>\n', '');
+  const svg = buildCapabilityMapSvgExport(context).replace(
+    '<?xml version="1.0" encoding="UTF-8"?>\n',
+    '',
+  );
   const maxDepthLabel = capabilityMapDepthLabel(context.maxDepth);
   const workspaceLabel = context.workspaceName?.trim() || 'ECMS workspace';
   const nodeCount = context.layout.nodes.length;
@@ -148,8 +147,12 @@ function renderSvgNode(node: LayoutNode, selectedId: string | null): string {
     'capability-node',
     isLeaf ? 'capability-node-leaf' : 'capability-node-parent',
     isSelected ? 'selected' : '',
-  ].filter(Boolean).join(' ');
-  const childContent = !isLeaf ? node.children.map((child) => renderSvgNode(child, selectedId)).join('\n') : '';
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const childContent = !isLeaf
+    ? node.children.map((child) => renderSvgNode(child, selectedId)).join('\n')
+    : '';
   const title = node.description ? `${node.name}\n${node.description}` : node.name;
 
   return [
@@ -158,13 +161,18 @@ function renderSvgNode(node: LayoutNode, selectedId: string | null): string {
     `<title>${escapeXml(title)}</title>`,
     '</rect>',
     `<text dominant-baseline="central" pointer-events="none" style="fill:${TEXT_COLOR};font:${isLeaf ? LEAF_FONT : PARENT_FONT};font-weight:${isLeaf ? 400 : 700};user-select:none" text-anchor="middle">`,
-    lines.map((line, index) => (
-      `<tspan x="${node.position.x + node.size.w / 2}" y="${textY + (index - (lines.length - 1) / 2) * lineHeight}">${escapeXml(line)}</tspan>`
-    )).join('\n'),
+    lines
+      .map(
+        (line, index) =>
+          `<tspan x="${node.position.x + node.size.w / 2}" y="${textY + (index - (lines.length - 1) / 2) * lineHeight}">${escapeXml(line)}</tspan>`,
+      )
+      .join('\n'),
     '</text>',
     childContent,
     '</g>',
-  ].filter(Boolean).join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function exportDescription(context: CapabilityMapExportContext, generatedAt: string): string {
@@ -354,7 +362,12 @@ function formatGeneratedAt(value: Date | string | undefined): string {
   return new Date().toISOString();
 }
 
-function wrapLabel(text: string, maxWidth: number, fontSize: number, textBoxHeight: number): string[] {
+function wrapLabel(
+  text: string,
+  maxWidth: number,
+  fontSize: number,
+  textBoxHeight: number,
+): string[] {
   const lineHeight = Math.max(fontSize * 1.2, fontSize + 1);
   const maxLines = Math.max(1, Math.floor(textBoxHeight / lineHeight));
   const compact = text.replace(/\s+/g, ' ').trim();
@@ -383,7 +396,9 @@ function wrapLabel(text: string, maxWidth: number, fontSize: number, textBoxHeig
   if (lines.length <= maxLines) return lines;
 
   const visible = lines.slice(0, Math.max(0, maxLines - 1));
-  visible.push(truncateWithEllipsis(lines.slice(Math.max(0, maxLines - 1)).join(' '), maxWidth, measure));
+  visible.push(
+    truncateWithEllipsis(lines.slice(Math.max(0, maxLines - 1)).join(' '), maxWidth, measure),
+  );
   return visible;
 }
 
@@ -433,16 +448,11 @@ function estimateTextWidth(text: string, fontSize: number): number {
 }
 
 function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function escapeHtml(value: string): string {
-  return escapeXml(value)
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  return escapeXml(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function escapeAttribute(value: string): string {

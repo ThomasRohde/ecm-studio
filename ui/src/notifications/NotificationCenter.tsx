@@ -18,8 +18,8 @@ import {
   WarningRegular,
 } from '@fluentui/react-icons';
 import { runNotificationAction } from './notification-actions';
-import { useNotificationStore } from './notification-store';
 import type { NotificationRecord, ToastKind } from './notification-store';
+import { useNotificationStore } from './notification-store';
 
 function kindLabel(kind: ToastKind): string {
   if (kind === 'progress') return 'info';
@@ -46,9 +46,9 @@ function KindIcon({ kind }: { kind: ToastKind }) {
 }
 
 export function NotificationCenterButton() {
-  const unreadCount = useNotificationStore((state) => (
-    state.notifications.filter((notification) => !notification.read).length
-  ));
+  const unreadCount = useNotificationStore(
+    (state) => state.notifications.filter((notification) => !notification.read).length,
+  );
   const setCenterOpen = useNotificationStore((state) => state.setCenterOpen);
 
   return (
@@ -93,14 +93,14 @@ export function NotificationCenter() {
     >
       <DrawerHeader>
         <DrawerHeaderTitle
-          action={(
+          action={
             <Button
               appearance="subtle"
               aria-label="Close notifications"
               icon={<DismissRegular />}
               onClick={() => setCenterOpen(false)}
             />
-          )}
+          }
         >
           Notifications
         </DrawerHeaderTitle>
@@ -141,7 +141,9 @@ export function NotificationCenter() {
                   <div className="notification-meta-row">
                     <span>{sourceLabel(notification)}</span>
                     <span>{formatTime(notification.updatedAt)}</span>
-                    {notification.repeatCount > 1 ? <span>{notification.repeatCount} repeats</span> : null}
+                    {notification.repeatCount > 1 ? (
+                      <span>{notification.repeatCount} repeats</span>
+                    ) : null}
                   </div>
                   {notification.action ? (
                     <Button

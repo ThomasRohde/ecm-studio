@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { api } from './bridge';
 import {
   canApplyImportPreview,
   canCutRelease,
@@ -7,6 +6,7 @@ import {
   releaseTagForVersion,
   validIntegrationBranchOrFallback,
 } from '../components/WorkspacePanels';
+import { api } from './bridge';
 import type { Capability, GitStatus, ImportPreview, ReleaseStatus } from './types';
 
 beforeEach(() => {
@@ -17,7 +17,29 @@ describe('bridge mock fallback', () => {
   it('returns app info without pywebview', async () => {
     const appInfo = await api.app.info();
 
-    expect(appInfo).toEqual({ name: 'ECM Studio', version: '0.1.0.dev0' });
+    expect(appInfo).toEqual({ name: 'ECM Studio', version: '0.2.0' });
+  });
+
+  it('uses the pywebview API when it is available', async () => {
+    const settings = {
+      schema_version: '1.0' as const,
+      theme_mode: 'light' as const,
+      resolved_theme: 'light' as const,
+      recent_workspaces: ['C:/real'],
+      view_setup: {
+        grid: { root: 'saved' },
+        panels: { workspace: { id: 'workspace', contentComponent: 'workspace' } },
+      },
+    };
+    (globalThis as unknown as { window: unknown }).window = {
+      pywebview: {
+        api: {
+          settings_get: () => ({ ok: true, data: settings }),
+        },
+      },
+    };
+
+    await expect(api.settings.get()).resolves.toEqual(settings);
   });
 
   it('initializes a workspace and creates a capability without pywebview', async () => {
@@ -31,7 +53,12 @@ describe('bridge mock fallback', () => {
   });
 
   it('supports theme, picker, import/export, and guided git mocks', async () => {
-    const settings = await api.settings.update({ theme_mode: 'dark' });
+    const viewSetup = {
+      grid: { root: 'workspace' },
+      panels: { workspace: { id: 'workspace', contentComponent: 'workspace' } },
+    };
+    const settings = await api.settings.update({ theme_mode: 'dark', view_setup: viewSetup });
+    const clearedSettings = await api.settings.update({ view_setup: null });
     const workspace = await api.workspace.pickInit('Picked');
     const exportResult = await api.models.export('json_bundle');
     const preview = await api.models.importPreview(null, 'append');
@@ -43,9 +70,13 @@ describe('bridge mock fallback', () => {
     const candidatesAfterMerge = await api.git.integrationCandidates();
     const status = await api.git.status();
     const graph = await api.git.graph();
-    const external = await api.external.openUrl('https://github.com/mock/ecm/releases/tag/ecm-v1.0.0');
+    const external = await api.external.openUrl(
+      'https://github.com/mock/ecm/releases/tag/ecm-v1.0.0',
+    );
 
     expect(settings.resolved_theme).toBe('dark');
+    expect(settings.view_setup).toEqual(viewSetup);
+    expect(clearedSettings.view_setup).toBeNull();
     expect(workspace?.name).toBe('Picked');
     expect(exportResult?.format).toBe('json_bundle');
     expect(preview?.invalid).toBe(0);
@@ -85,11 +116,15 @@ describe('bridge mock fallback', () => {
     const target = await api.capabilities.create({ name: `Target ${suffix}` });
     const child = await api.capabilities.create({ name: `Child ${suffix}`, parent_id: source.id });
 
-    const saved = await api.capabilities.save(child.id, {
-      ...child,
-      name: `Renamed ${suffix}`,
-      domain: 'Operations',
-    }, target.id);
+    const saved = await api.capabilities.save(
+      child.id,
+      {
+        ...child,
+        name: `Renamed ${suffix}`,
+        domain: 'Operations',
+      },
+      target.id,
+    );
     const tree = await api.capabilities.listTree();
     const movedTarget = flatten(tree).find((capability) => capability.id === target.id);
 
@@ -137,7 +172,9 @@ describe('bridge mock fallback', () => {
       can_cut: true,
       can_publish: false,
       cut_blockers: [],
-      publish_blockers: [{ code: 'RELEASE_TAG_MISSING', message: 'No local release is available to publish.' }],
+      publish_blockers: [
+        { code: 'RELEASE_TAG_MISSING', message: 'No local release is available to publish.' },
+      ],
       remote: {
         name: 'origin',
         url: 'https://github.com/mock/ecm.git',
@@ -153,18 +190,37 @@ describe('bridge mock fallback', () => {
     expect(releaseTagForVersion('1.2.3')).toBe('ecm-v1.2.3');
     expect(releaseTagForVersion('1.2')).toBe('ecm-vX.Y.Z');
     expect(canCutRelease(releaseStatus, git, '1.2.3')).toBe(true);
-    expect(canCutRelease({ ...releaseStatus, can_cut: false, cut_blockers: [{ code: 'RELEASE_REMOTE_MISSING', message: 'No remote.' }] }, git, '1.2.3')).toBe(false);
+    expect(
+      canCutRelease(
+        {
+          ...releaseStatus,
+          can_cut: false,
+          cut_blockers: [{ code: 'RELEASE_REMOTE_MISSING', message: 'No remote.' }],
+        },
+        git,
+        '1.2.3',
+      ),
+    ).toBe(false);
     expect(canCutRelease(releaseStatus, { ...git, has_remote: false }, '1.2.3')).toBe(false);
     expect(canCutRelease(releaseStatus, { ...git, clean: false }, '1.2.3')).toBe(false);
-    expect(canPublishRelease({ ...releaseStatus, can_publish: true, latest_release: {
-      id: 'release-1',
-      version_label: '1.2.3',
-      tag: 'ecm-v1.2.3',
-      state: 'released',
-      capability_count: 1,
-      export_paths: [],
-      released_at: '2026-04-25T00:00:00Z',
-    } }, git)).toBe(true);
+    expect(
+      canPublishRelease(
+        {
+          ...releaseStatus,
+          can_publish: true,
+          latest_release: {
+            id: 'release-1',
+            version_label: '1.2.3',
+            tag: 'ecm-v1.2.3',
+            state: 'released',
+            capability_count: 1,
+            export_paths: [],
+            released_at: '2026-04-25T00:00:00Z',
+          },
+        },
+        git,
+      ),
+    ).toBe(true);
   });
 
   it('chooses only integrable scenario branches for integration', () => {
@@ -176,7 +232,9 @@ describe('bridge mock fallback', () => {
 
     expect(validIntegrationBranchOrFallback('work/later', candidates)).toBe('work/later');
     expect(validIntegrationBranchOrFallback('work/done', candidates)).toBe('work/pending');
-    expect(validIntegrationBranchOrFallback('', [{ name: 'work/done', integrable: false }])).toBe('');
+    expect(validIntegrationBranchOrFallback('', [{ name: 'work/done', integrable: false }])).toBe(
+      '',
+    );
   });
 });
 

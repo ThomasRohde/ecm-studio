@@ -1,17 +1,17 @@
-import { useEffect, useState } from 'react';
 import { FluentProvider, webDarkTheme, webLightTheme } from '@fluentui/react-components';
+import { useEffect, useState } from 'react';
 import { api } from './api/bridge';
-import { StudioLayout } from './components/StudioLayout';
-import { StatusBar } from './components/StatusBar';
 import { AppMenu } from './components/AppMenu';
 import { GitBadges } from './components/GitBadges';
+import { StatusBar } from './components/StatusBar';
+import { StudioLayout } from './components/StudioLayout';
 import { NotificationCenter, NotificationCenterButton } from './notifications/NotificationCenter';
+import { errorMessage, notify } from './notifications/notify';
 import { ToastHost } from './notifications/ToastHost';
 import { useAppStore } from './store/app-store';
 import { applyTheme, useSettingsStore } from './store/settings-store';
 import { BlockingTaskDialog } from './tasks/BlockingTaskDialog';
 import { hydrateStartupWorkspace } from './workspace/workspace-refresh';
-import { notify, errorMessage } from './notifications/notify';
 
 let startupWorkspaceHydrationStarted = false;
 
@@ -24,7 +24,10 @@ export function App() {
   const fluentTheme = settings.resolved_theme === 'dark' ? webDarkTheme : webLightTheme;
 
   useEffect(() => {
-    void api.app.info().then(setAppInfo).catch(() => setAppInfo(null));
+    void api.app
+      .info()
+      .then(setAppInfo)
+      .catch(() => setAppInfo(null));
   }, [setAppInfo]);
 
   useEffect(() => {
@@ -72,7 +75,9 @@ export function App() {
           <NotificationCenterButton />
           <img alt="" aria-hidden="true" className="app-logo" src="./brand/ecm-studio-logo.svg" />
         </header>
-        <section className="studio-area"><StudioLayout /></section>
+        <section className="studio-area">
+          <StudioLayout />
+        </section>
         <StatusBar />
         <AppMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
         <NotificationCenter />

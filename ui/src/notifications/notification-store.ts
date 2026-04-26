@@ -26,13 +26,7 @@ export type ToastIntent =
   | 'operation.progress'
   | 'operation.failed';
 
-export type ToastSource =
-  | 'workspace'
-  | 'model'
-  | 'git'
-  | 'release'
-  | 'diagnostics'
-  | 'import';
+export type ToastSource = 'workspace' | 'model' | 'git' | 'release' | 'diagnostics' | 'import';
 
 export type NotificationAction =
   | {
@@ -106,7 +100,9 @@ export function defaultTtlMs(kind: ToastKind): number {
   return -1;
 }
 
-export function notificationTimeoutMs(notification: Pick<NotificationRecord, 'persistent' | 'ttlMs'>): number {
+export function notificationTimeoutMs(
+  notification: Pick<NotificationRecord, 'persistent' | 'ttlMs'>,
+): number {
   return notification.persistent ? -1 : notification.ttlMs;
 }
 
@@ -125,7 +121,11 @@ export function selectToastStack(notifications: NotificationRecord[]): ToastStac
   };
 }
 
-function normalizeToast(toast: AppToast, now: number, existing?: NotificationRecord): NotificationRecord {
+function normalizeToast(
+  toast: AppToast,
+  now: number,
+  existing?: NotificationRecord,
+): NotificationRecord {
   const kind = toast.kind;
   return {
     id: existing?.id ?? toast.id ?? notificationId(),
@@ -147,7 +147,11 @@ function normalizeToast(toast: AppToast, now: number, existing?: NotificationRec
   };
 }
 
-function normalizeUpdate(update: AppToastUpdate, existing: NotificationRecord, now: number): NotificationRecord {
+function normalizeUpdate(
+  update: AppToastUpdate,
+  existing: NotificationRecord,
+  now: number,
+): NotificationRecord {
   const kind = update.kind;
   return {
     ...existing,
@@ -195,9 +199,9 @@ export const useNotificationStore = create<NotificationState>((set) => ({
         : undefined;
       nextRecord = normalizeToast(toast, now, existing);
       const notifications = existing
-        ? state.notifications.map((notification) => (
-            notification.id === existing.id ? nextRecord as NotificationRecord : notification
-          ))
+        ? state.notifications.map((notification) =>
+            notification.id === existing.id ? (nextRecord as NotificationRecord) : notification,
+          )
         : [nextRecord, ...state.notifications];
       return { notifications: notifications.slice(0, HISTORY_LIMIT) };
     });
@@ -208,35 +212,35 @@ export const useNotificationStore = create<NotificationState>((set) => ({
   updateNotification: (id, update) => {
     const now = Date.now();
     set((state) => ({
-      notifications: state.notifications.map((notification) => (
-        notification.id === id ? normalizeUpdate(update, notification, now) : notification
-      )),
+      notifications: state.notifications.map((notification) =>
+        notification.id === id ? normalizeUpdate(update, notification, now) : notification,
+      ),
     }));
   },
 
   dismissNotification: (id) => {
     set((state) => ({
-      notifications: state.notifications.map((notification) => (
+      notifications: state.notifications.map((notification) =>
         notification.id === id
           ? { ...notification, dismissed: true, toastDismissed: true, read: true }
-          : notification
-      )),
+          : notification,
+      ),
     }));
   },
 
   markToastDismissed: (id) => {
     set((state) => ({
-      notifications: state.notifications.map((notification) => (
-        notification.id === id ? { ...notification, toastDismissed: true } : notification
-      )),
+      notifications: state.notifications.map((notification) =>
+        notification.id === id ? { ...notification, toastDismissed: true } : notification,
+      ),
     }));
   },
 
   markRead: (id) => {
     set((state) => ({
-      notifications: state.notifications.map((notification) => (
-        notification.id === id ? { ...notification, read: true } : notification
-      )),
+      notifications: state.notifications.map((notification) =>
+        notification.id === id ? { ...notification, read: true } : notification,
+      ),
     }));
   },
 

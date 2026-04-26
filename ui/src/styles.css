@@ -1,4 +1,6 @@
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
 }
@@ -15,7 +17,8 @@ html, body, #root {
   --accent-soft: rgba(37, 99, 109, 0.14);
   --titlebar-bg: linear-gradient(135deg, #efe8d6, #d6e4df 55%, #c6d6cf);
   --statusbar-bg: #e3ece8;
-  --menu-bg: radial-gradient(circle at 10% 0%, rgba(64, 132, 145, 0.18), transparent 34%),
+  --menu-bg:
+    radial-gradient(circle at 10% 0%, rgba(64, 132, 145, 0.18), transparent 34%),
     linear-gradient(180deg, #fbf8ee, #edf3ef);
   --error-fg: #b10e1c;
 }
@@ -32,7 +35,8 @@ html, body, #root {
   --accent-soft: rgba(143, 180, 189, 0.14);
   --titlebar-bg: linear-gradient(135deg, #0f1f2c, #1e3a3a 60%, #323223);
   --statusbar-bg: #21313a;
-  --menu-bg: radial-gradient(circle at 10% 0%, rgba(93, 150, 163, 0.28), transparent 34%),
+  --menu-bg:
+    radial-gradient(circle at 10% 0%, rgba(93, 150, 163, 0.28), transparent 34%),
     linear-gradient(180deg, #18232b, #0f141a);
   --error-fg: #ffb3b3;
 }
@@ -212,7 +216,7 @@ body {
   position: fixed;
   inset: 0;
   border: 0;
-  background: rgba(0,0,0,0.46);
+  background: rgba(0, 0, 0, 0.46);
   opacity: 0;
   pointer-events: none;
   transition: opacity 140ms ease;
@@ -232,7 +236,7 @@ body {
   padding: 18px;
   background: var(--menu-bg);
   border-right: 1px solid var(--panel-border);
-  box-shadow: 20px 0 60px rgba(0,0,0,0.42);
+  box-shadow: 20px 0 60px rgba(0, 0, 0, 0.42);
   transform: translateX(-104%);
   transition: transform 180ms ease;
   z-index: 21;
@@ -329,6 +333,20 @@ body {
 
 .dockview {
   height: 100%;
+}
+
+.ecm-dock-tab {
+  min-width: 0;
+}
+
+.ecm-dock-tab-close {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  padding: 0;
 }
 
 .group-header-actions {

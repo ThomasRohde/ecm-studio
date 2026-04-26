@@ -22,6 +22,7 @@ import type {
   ReleaseStatus,
   ReleaseSummary,
   SearchResult,
+  SettingsPatch,
   ThemeMode,
   Workspace,
 } from './types';
@@ -33,6 +34,8 @@ declare global {
     };
   }
 }
+
+const PYWEBVIEW_READY_TIMEOUT_MS = 5000;
 
 const mockGitStatus = (): GitStatus => ({
   is_repo: true,
@@ -68,6 +71,7 @@ const mockState: {
     theme_mode: 'system',
     resolved_theme: prefersDark() ? 'dark' : 'light',
     recent_workspaces: [],
+    view_setup: null,
   },
   git: mockGitStatus(),
   latestRelease: null,
@@ -75,24 +79,76 @@ const mockState: {
 };
 
 async function call<T>(method: string, ...args: unknown[]): Promise<T> {
-  const pywebviewApi = typeof window === 'undefined' ? undefined : window.pywebview?.api;
+  const pywebviewApi = await resolvePywebviewApi(method);
   if (!pywebviewApi?.[method]) return mockCall<T>(method, args);
   const result = await pywebviewApi[method](...args);
   if (result.ok) return result.data as T;
   throw new Error(`${result.error.code}: ${result.error.message}`);
 }
 
+async function resolvePywebviewApi(
+  method: string,
+): Promise<NonNullable<Window['pywebview']>['api'] | undefined> {
+  if (typeof window === 'undefined') return undefined;
+  if (window.pywebview?.api?.[method]) return window.pywebview.api;
+  if (!shouldWaitForPywebview()) return undefined;
+
+  await waitForPywebviewApi(method);
+  return window.pywebview?.api?.[method] ? window.pywebview.api : undefined;
+}
+
+function shouldWaitForPywebview(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (window.pywebview) return true;
+  return window.location?.protocol === 'file:';
+}
+
+function waitForPywebviewApi(method: string): Promise<void> {
+  if (
+    PYWEBVIEW_READY_TIMEOUT_MS <= 0 ||
+    typeof window === 'undefined' ||
+    typeof window.addEventListener !== 'function'
+  ) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    let interval: ReturnType<typeof setInterval> | undefined;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const cleanup = () => {
+      if (interval !== undefined) clearInterval(interval);
+      if (timeout !== undefined) clearTimeout(timeout);
+      window.removeEventListener('pywebviewready', check);
+    };
+    const finish = () => {
+      cleanup();
+      resolve();
+    };
+    const check = () => {
+      if (window.pywebview?.api?.[method]) finish();
+    };
+
+    window.addEventListener('pywebviewready', check);
+    interval = setInterval(check, 25);
+    timeout = setTimeout(finish, PYWEBVIEW_READY_TIMEOUT_MS);
+    check();
+  });
+}
+
 async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
-  if (method === 'app_info') return { name: 'ECM Studio', version: '0.1.0.dev0' } as T;
+  if (method === 'app_info') return { name: 'ECM Studio', version: '0.2.0' } as T;
   if (method === 'settings_get') return mockState.settings as T;
   if (method === 'settings_update') {
-    const patch = args[0] as Partial<AppSettings>;
+    const patch = args[0] as SettingsPatch;
     const themeMode = patch.theme_mode ?? mockState.settings.theme_mode;
     mockState.settings = {
       ...mockState.settings,
       theme_mode: themeMode,
       resolved_theme: resolveMockTheme(themeMode),
     };
+    if ('view_setup' in patch) {
+      mockState.settings.view_setup = patch.view_setup ?? null;
+    }
     return mockState.settings as T;
   }
   if (method === 'workspace_init') {
@@ -106,8 +162,10 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
     rememberWorkspace(mockState.workspace.path);
     return mockState.workspace as T;
   }
-  if (method === 'workspace_pick_init') return mockCall<T>('workspace_init', ['C:\\Mock\\ECM Workspace', args[0] || 'Demo Workspace']);
-  if (method === 'workspace_pick_open') return mockCall<T>('workspace_open', ['C:\\Mock\\ECM Workspace']);
+  if (method === 'workspace_pick_init')
+    return mockCall<T>('workspace_init', ['C:\\Mock\\ECM Workspace', args[0] || 'Demo Workspace']);
+  if (method === 'workspace_pick_open')
+    return mockCall<T>('workspace_open', ['C:\\Mock\\ECM Workspace']);
   if (method === 'dialog_pick_workspace') return 'C:\\Mock\\ECM Workspace' as T;
   if (method === 'workspace_status' || method === 'workspace_open') {
     if (!mockState.workspace) {
@@ -123,7 +181,8 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
     mockState.workspace.git = mockState.git;
     return mockState.workspace as T;
   }
-  if (method === 'workspace_rebuild_index') return { capability_count: mockState.capabilities.length, source_hash: 'mock' } as T;
+  if (method === 'workspace_rebuild_index')
+    return { capability_count: mockState.capabilities.length, source_hash: 'mock' } as T;
   if (method === 'capabilities_create') {
     const input = args[0] as Partial<Capability>;
     const capability: Capability = {
@@ -227,7 +286,11 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
   if (method === 'capabilities_move') {
     const existing = mockState.capabilities.find((c) => c.id === args[0]);
     if (!existing) throw new Error('VALIDATION_FAILED: Capability not found.');
-    moveMockCapability(existing.id, (args[1] as string | null) ?? null, args[2] as number | undefined);
+    moveMockCapability(
+      existing.id,
+      (args[1] as string | null) ?? null,
+      args[2] as number | undefined,
+    );
     applyComputedCapabilityTypes();
     return existing as T;
   }
@@ -260,9 +323,14 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
     const sourceBranch = String(args[0]);
     const sourceHead = headForBranch(sourceBranch);
     if (!sourceHead || isMockAncestor(sourceHead, headForBranch(mockState.git.branch))) {
-      throw new Error(`GIT_BRANCH_ALREADY_INTEGRATED: Scenario "${sourceBranch}" is already integrated into the current scenario.`);
+      throw new Error(
+        `GIT_BRANCH_ALREADY_INTEGRATED: Scenario "${sourceBranch}" is already integrated into the current scenario.`,
+      );
     }
-    addMockGraphCommit(`Integrate ${sourceBranch}`, [headForBranch(mockState.git.branch), sourceHead].filter(Boolean) as string[]);
+    addMockGraphCommit(
+      `Integrate ${sourceBranch}`,
+      [headForBranch(mockState.git.branch), sourceHead].filter(Boolean) as string[],
+    );
     return { merged: true, source_branch: sourceBranch, target_branch: mockState.git.branch } as T;
   }
   if (method === 'git_abort_merge') {
@@ -270,21 +338,37 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
     mockState.git.conflicted_files = [];
     return { aborted: true, merge_in_progress: false } as T;
   }
-  if (method === 'git_pull') return { pulled: true, remote: 'origin', branch: mockState.git.branch } as T;
-  if (method === 'git_push') return { pushed: true, remote: 'origin', branch: mockState.git.branch } as T;
+  if (method === 'git_pull')
+    return { pulled: true, remote: 'origin', branch: mockState.git.branch } as T;
+  if (method === 'git_push')
+    return { pushed: true, remote: 'origin', branch: mockState.git.branch } as T;
   if (method === 'git_history') return mockState.checkpoints as T;
   if (method === 'git_graph') return mockGitGraph(Number(args[0] || 50)) as T;
   if (method === 'git_checkpoint') {
-    const checkpoint = { id: crypto.randomUUID(), message: String(args[0]), timestamp: new Date().toISOString(), author: 'Mock', skipped: false };
+    const checkpoint = {
+      id: crypto.randomUUID(),
+      message: String(args[0]),
+      timestamp: new Date().toISOString(),
+      author: 'Mock',
+      skipped: false,
+    };
     mockState.checkpoints.unshift(checkpoint);
-    addMockGraphCommit(checkpoint.message, [headForBranch(mockState.git.branch)].filter(Boolean) as string[], checkpoint.id);
+    addMockGraphCommit(
+      checkpoint.message,
+      [headForBranch(mockState.git.branch)].filter(Boolean) as string[],
+      checkpoint.id,
+    );
     return checkpoint as T;
   }
   if (method === 'releases_status') return mockReleaseStatus() as T;
   if (method === 'releases_cut') {
     const version = String(args[0] || '');
-    if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('RELEASE_INVALID_VERSION: Release version must use the form "X.Y.Z".');
-    if (!mockState.git.has_remote) throw new Error('RELEASE_REMOTE_MISSING: Configure an origin remote before cutting or publishing releases.');
+    if (!/^\d+\.\d+\.\d+$/.test(version))
+      throw new Error('RELEASE_INVALID_VERSION: Release version must use the form "X.Y.Z".');
+    if (!mockState.git.has_remote)
+      throw new Error(
+        'RELEASE_REMOTE_MISSING: Configure an origin remote before cutting or publishing releases.',
+      );
     const tag = `ecm-v${version}`;
     const checkpoint = await mockCall<Checkpoint>('git_checkpoint', [`Release ${tag}`]);
     mockState.latestRelease = {
@@ -313,8 +397,12 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
   }
   if (method === 'releases_publish') {
     const tag = String(args[0]);
-    if (!mockState.git.has_remote) throw new Error('RELEASE_REMOTE_MISSING: Configure an origin remote before cutting or publishing releases.');
-    if (!mockState.latestRelease || mockState.latestRelease.tag !== tag) throw new Error(`RELEASE_TAG_MISSING: Release tag "${tag}" does not exist.`);
+    if (!mockState.git.has_remote)
+      throw new Error(
+        'RELEASE_REMOTE_MISSING: Configure an origin remote before cutting or publishing releases.',
+      );
+    if (!mockState.latestRelease || mockState.latestRelease.tag !== tag)
+      throw new Error(`RELEASE_TAG_MISSING: Release tag "${tag}" does not exist.`);
     const publishedAt = new Date().toISOString();
     const url = `https://github.com/mock/ecm/releases/tag/${tag}`;
     mockState.latestRelease = {
@@ -335,9 +423,14 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
   }
   if (method === 'diagnostics_run') return [] as T;
   if (method === 'audit_recent') return mockState.audit.slice(0, Number(args[0] || 100)) as T;
-  if (method === 'capabilities_export') return { path: 'mock', count: mockState.capabilities.length } as T;
+  if (method === 'capabilities_export')
+    return { path: 'mock', count: mockState.capabilities.length } as T;
   if (method === 'models_export') {
-    return { format: args[0] as ModelFormat, path: 'C:\\Mock\\exports\\capabilities.jsonl', count: mockState.capabilities.length } as T;
+    return {
+      format: args[0] as ModelFormat,
+      path: 'C:\\Mock\\exports\\capabilities.jsonl',
+      count: mockState.capabilities.length,
+    } as T;
   }
   if (method === 'map_export') {
     const format = args[0] as MapExportFormat;
@@ -389,9 +482,10 @@ function moveMockCapability(id: string, parentId: string | null, order?: number)
   if (!existing) return;
   const previousParentId = existing.parent_id;
   const destinationSiblings = orderedMockSiblings(parentId, id);
-  const destinationIndex = order === undefined
-    ? destinationSiblings.length
-    : Math.min(Math.max(0, order), destinationSiblings.length);
+  const destinationIndex =
+    order === undefined
+      ? destinationSiblings.length
+      : Math.min(Math.max(0, order), destinationSiblings.length);
   existing.parent_id = parentId;
   existing.order = destinationIndex;
   existing.updated_at = new Date().toISOString();
@@ -533,10 +627,7 @@ function mockReleaseStatus(): ReleaseStatus {
       }
     : null;
   const cutBlockers = mockState.git.has_remote ? [] : [noRemote];
-  const publishBlockers = [
-    ...cutBlockers,
-    ...(mockState.latestRelease ? [] : [noRelease]),
-  ];
+  const publishBlockers = [...cutBlockers, ...(mockState.latestRelease ? [] : [noRelease])];
   return {
     can_cut: cutBlockers.length === 0,
     can_publish: publishBlockers.length === 0,
@@ -558,7 +649,7 @@ export const api = {
   },
   settings: {
     get: () => call<AppSettings>('settings_get'),
-    update: (patch: { theme_mode?: ThemeMode }) => call<AppSettings>('settings_update', patch),
+    update: (patch: SettingsPatch) => call<AppSettings>('settings_update', patch),
   },
   workspace: {
     open: (path?: string) => call<Workspace>('workspace_open', path),
@@ -567,26 +658,32 @@ export const api = {
     pickInit: (name: string) => call<Workspace | null>('workspace_pick_init', name),
     pickFolder: () => call<string | null>('dialog_pick_workspace'),
     status: () => call<Workspace>('workspace_status'),
-    rebuildIndex: () => call<{ capability_count: number; source_hash: string }>('workspace_rebuild_index'),
+    rebuildIndex: () =>
+      call<{ capability_count: number; source_hash: string }>('workspace_rebuild_index'),
   },
   capabilities: {
     listTree: () => call<Capability[]>('capabilities_list_tree'),
     get: (id: string) => call<Capability>('capabilities_get', id),
     create: (input: Partial<Capability>) => call<Capability>('capabilities_create', input),
-    update: (id: string, patch: CapabilityPatch) => call<Capability>('capabilities_update', id, patch),
-    save: (id: string, patch: CapabilityPatch, parentId: string | null, order?: number) => call<Capability>('capabilities_save', id, patch, parentId, order),
-    move: (id: string, parentId: string | null, order?: number) => call<Capability>('capabilities_move', id, parentId, order),
-    export: (format: 'csv' | 'json') => call<{ path: string; count: number }>('capabilities_export', format),
+    update: (id: string, patch: CapabilityPatch) =>
+      call<Capability>('capabilities_update', id, patch),
+    save: (id: string, patch: CapabilityPatch, parentId: string | null, order?: number) =>
+      call<Capability>('capabilities_save', id, patch, parentId, order),
+    move: (id: string, parentId: string | null, order?: number) =>
+      call<Capability>('capabilities_move', id, parentId, order),
+    export: (format: 'csv' | 'json') =>
+      call<{ path: string; count: number }>('capabilities_export', format),
   },
   models: {
-    importPreview: (sourcePath: string | null, mode: ImportMode) => call<ImportPreview | null>('models_import_preview', sourcePath, mode),
-    importApply: (sourcePath: string, mode: ImportMode) => call<ImportPreview>('models_import_apply', sourcePath, mode),
+    importPreview: (sourcePath: string | null, mode: ImportMode) =>
+      call<ImportPreview | null>('models_import_preview', sourcePath, mode),
+    importApply: (sourcePath: string, mode: ImportMode) =>
+      call<ImportPreview>('models_import_apply', sourcePath, mode),
     export: (format: ModelFormat) => call<ExportResult | null>('models_export', format, null),
   },
   map: {
-    export: (format: MapExportFormat, content: string, suggestedFilename: string) => (
-      call<MapExportResult | null>('map_export', format, content, suggestedFilename)
-    ),
+    export: (format: MapExportFormat, content: string, suggestedFilename: string) =>
+      call<MapExportResult | null>('map_export', format, content, suggestedFilename),
   },
   search: {
     query: (q: string) => call<SearchResult[]>('search_query', q, null),
@@ -599,16 +696,23 @@ export const api = {
     compare: (from: string, to: string) => call<unknown>('git_compare', from, to),
     listBranches: () => call<string[]>('git_list_branches'),
     integrationCandidates: () => call<BranchIntegrationCandidate[]>('git_integration_candidates'),
-    createBranch: (name: string) => call<{ branch: string; current_branch: string | null }>('git_create_branch', name),
-    switchBranch: (name: string) => call<{ branch: string; rebuild?: unknown }>('git_switch_branch', name),
-    mergeBranch: (sourceBranch: string) => call<{ merged: boolean; source_branch: string; target_branch: string | null }>('git_merge_branch', sourceBranch),
+    createBranch: (name: string) =>
+      call<{ branch: string; current_branch: string | null }>('git_create_branch', name),
+    switchBranch: (name: string) =>
+      call<{ branch: string; rebuild?: unknown }>('git_switch_branch', name),
+    mergeBranch: (sourceBranch: string) =>
+      call<{ merged: boolean; source_branch: string; target_branch: string | null }>(
+        'git_merge_branch',
+        sourceBranch,
+      ),
     abortMerge: () => call<{ aborted: boolean; merge_in_progress: boolean }>('git_abort_merge'),
     pull: () => call<{ pulled: boolean; remote: string; branch: string }>('git_pull'),
     push: () => call<{ pushed: boolean; remote: string; branch: string }>('git_push'),
   },
   releases: {
     status: () => call<ReleaseStatus>('releases_status'),
-    cut: (version: string, notes?: string) => call<ReleaseResult>('releases_cut', version, notes ?? null),
+    cut: (version: string, notes?: string) =>
+      call<ReleaseResult>('releases_cut', version, notes ?? null),
     publish: (tag: string) => call<PublishResult>('releases_publish', tag),
   },
   diagnostics: {
@@ -630,10 +734,14 @@ function resolveMockTheme(themeMode: ThemeMode): 'light' | 'dark' {
 function rememberWorkspace(path: string) {
   mockState.settings.recent_workspaces = [
     path,
-    ...mockState.settings.recent_workspaces.filter((item) => item.toLowerCase() !== path.toLowerCase()),
+    ...mockState.settings.recent_workspaces.filter(
+      (item) => item.toLowerCase() !== path.toLowerCase(),
+    ),
   ].slice(0, 10);
 }
 
 function prefersDark() {
-  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+  return (
+    typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches
+  );
 }

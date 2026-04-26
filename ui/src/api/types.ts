@@ -122,12 +122,19 @@ export interface GitGraphData {
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
+export type ViewSetup = Record<string, unknown>;
+
+export interface SettingsPatch {
+  theme_mode?: ThemeMode;
+  view_setup?: ViewSetup | null;
+}
 
 export interface AppSettings {
   schema_version: '1.0';
   theme_mode: ThemeMode;
   resolved_theme: ResolvedTheme;
   recent_workspaces: string[];
+  view_setup: ViewSetup | null;
 }
 
 export interface Capability {

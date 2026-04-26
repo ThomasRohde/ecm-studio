@@ -36,7 +36,12 @@ export function BlockingTaskDialog() {
                     <Spinner size="tiny" />
                     <Text id="blocking-task-message">{message}</Text>
                   </div>
-                  <ProgressBar className="blocking-task-progress" value={progress} max={1} thickness="medium" />
+                  <ProgressBar
+                    className="blocking-task-progress"
+                    value={progress}
+                    max={1}
+                    thickness="medium"
+                  />
                 </>
               ) : (
                 <div className="blocking-task-status">

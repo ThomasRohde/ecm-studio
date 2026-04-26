@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useRef } from 'react';
+import type { ToastIntent as FluentToastIntent } from '@fluentui/react-components';
 import {
   Button,
   Toast,
   ToastBody,
+  Toaster,
   ToastFooter,
   ToastTitle,
-  Toaster,
   useToastController,
 } from '@fluentui/react-components';
-import type { ToastIntent as FluentToastIntent } from '@fluentui/react-components';
 import {
   ArrowClockwiseRegular,
   CheckmarkCircleRegular,
@@ -16,13 +15,14 @@ import {
   InfoRegular,
   WarningRegular,
 } from '@fluentui/react-icons';
+import { useEffect, useMemo, useRef } from 'react';
 import { runNotificationAction } from './notification-actions';
+import type { NotificationRecord, ToastKind } from './notification-store';
 import {
   notificationTimeoutMs,
   selectToastStack,
   useNotificationStore,
 } from './notification-store';
-import type { NotificationRecord, ToastKind } from './notification-store';
 
 const TOASTER_ID = 'ecms-notifications';
 const OVERFLOW_TOAST_ID = 'ecms-notification-overflow';
@@ -43,9 +43,7 @@ function KindIcon({ kind }: { kind: ToastKind }) {
 function NotificationToast({ notification }: { notification: NotificationRecord }) {
   return (
     <Toast>
-      <ToastTitle media={<KindIcon kind={notification.kind} />}>
-        {notification.title}
-      </ToastTitle>
+      <ToastTitle media={<KindIcon kind={notification.kind} />}>{notification.title}</ToastTitle>
       {notification.body ? <ToastBody>{notification.body}</ToastBody> : null}
       {notification.action ? (
         <ToastFooter>

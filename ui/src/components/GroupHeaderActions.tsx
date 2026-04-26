@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
 import type { IDockviewHeaderActionsProps } from 'dockview';
+import { useCallback, useEffect, useState } from 'react';
 
 export function GroupHeaderActions({ api, containerApi }: IDockviewHeaderActionsProps) {
   const [isMaximized, setIsMaximized] = useState(() => api.isMaximized());

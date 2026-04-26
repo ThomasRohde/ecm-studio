@@ -1,24 +1,34 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Button, Input, Menu, MenuButton, MenuItem, MenuList, MenuPopover, MenuTrigger, Text } from '@fluentui/react-components';
+import {
+  Button,
+  Input,
+  Menu,
+  MenuButton,
+  MenuItem,
+  MenuList,
+  MenuPopover,
+  MenuTrigger,
+  Text,
+} from '@fluentui/react-components';
 import { ArrowDownloadRegular, ZoomFitRegular } from '@fluentui/react-icons';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/bridge';
 import type { MapExportFormat } from '../api/types';
 import { errorMessage, notify } from '../notifications/notify';
 import { useAppStore } from '../store/app-store';
 import {
-  CAPABILITY_MAP_ALL_ROOTS,
-  DEFAULT_DEPTH_COLORS,
-  DEFAULT_LEAF_COLOR,
-  capabilityMapById,
-  capabilityMapRootOptions,
-  layoutCapabilityMap,
-} from './capability-map-layout';
-import type { CapabilityMapRootOption, LayoutNode, LayoutResult } from './capability-map-layout';
-import {
   CAPABILITY_MAP_EXPORT_OPTIONS,
   capabilityMapDepthLabel,
   saveCapabilityMapExport,
 } from './capability-map-export';
+import type { CapabilityMapRootOption, LayoutNode, LayoutResult } from './capability-map-layout';
+import {
+  CAPABILITY_MAP_ALL_ROOTS,
+  capabilityMapById,
+  capabilityMapRootOptions,
+  DEFAULT_DEPTH_COLORS,
+  DEFAULT_LEAF_COLOR,
+  layoutCapabilityMap,
+} from './capability-map-layout';
 
 const INITIAL_PAN = { x: 20, y: 20 };
 const MIN_SCALE = 0.15;
@@ -67,52 +77,58 @@ export function CapabilityMapPanel() {
     setScale(1);
   }, [workspace?.path]);
 
-  const selectNode = useCallback((nodeId: string) => {
-    const capability = capabilityById.get(nodeId);
-    if (capability) setSelected(capability);
-  }, [capabilityById, setSelected]);
+  const selectNode = useCallback(
+    (nodeId: string) => {
+      const capability = capabilityById.get(nodeId);
+      if (capability) setSelected(capability);
+    },
+    [capabilityById, setSelected],
+  );
 
   const resetView = useCallback(() => {
     setPan(INITIAL_PAN);
     setScale(1);
   }, []);
 
-  const exportMap = useCallback(async (format: MapExportFormat) => {
-    if (!layout) return;
-    const rootLabel = selectedRootLabel(rootOptions, rootId);
+  const exportMap = useCallback(
+    async (format: MapExportFormat) => {
+      if (!layout) return;
+      const rootLabel = selectedRootLabel(rootOptions, rootId);
 
-    try {
-      setExportingFormat(format);
-      const result = await saveCapabilityMapExport({
-        format,
-        layout,
-        maxDepth,
-        rootLabel,
-        selectedId: useAppStore.getState().selectedId,
-        workspaceName: workspace?.name,
-        save: api.map.export,
-      });
-      if (!result) return;
-      notify.success({
-        intent: 'model.exported',
-        title: 'Capability map exported',
-        body: `${format.toUpperCase()} map exported to ${result.path}.`,
-        source: 'model',
-        dedupeKey: `capability-map.export.${result.path}`,
-        action: { label: 'Open capability map', panelId: 'map' },
-      });
-    } catch (error) {
-      notify.error({
-        intent: 'operation.failed',
-        title: 'Could not export capability map',
-        body: errorMessage(error),
-        source: 'model',
-        action: { label: 'Open capability map', panelId: 'map' },
-      });
-    } finally {
-      setExportingFormat(null);
-    }
-  }, [layout, maxDepth, rootId, rootOptions, workspace?.name]);
+      try {
+        setExportingFormat(format);
+        const result = await saveCapabilityMapExport({
+          format,
+          layout,
+          maxDepth,
+          rootLabel,
+          selectedId: useAppStore.getState().selectedId,
+          workspaceName: workspace?.name,
+          save: api.map.export,
+        });
+        if (!result) return;
+        notify.success({
+          intent: 'model.exported',
+          title: 'Capability map exported',
+          body: `${format.toUpperCase()} map exported to ${result.path}.`,
+          source: 'model',
+          dedupeKey: `capability-map.export.${result.path}`,
+          action: { label: 'Open capability map', panelId: 'map' },
+        });
+      } catch (error) {
+        notify.error({
+          intent: 'operation.failed',
+          title: 'Could not export capability map',
+          body: errorMessage(error),
+          source: 'model',
+          action: { label: 'Open capability map', panelId: 'map' },
+        });
+      } finally {
+        setExportingFormat(null);
+      }
+    },
+    [layout, maxDepth, rootId, rootOptions, workspace?.name],
+  );
 
   const handleWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -120,24 +136,30 @@ export function CapabilityMapPanel() {
     setScale((current) => clamp(current * delta, MIN_SCALE, MAX_SCALE));
   }, []);
 
-  const handleMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return;
-    setDragging(true);
-    dragStart.current = {
-      x: event.clientX,
-      y: event.clientY,
-      panX: pan.x,
-      panY: pan.y,
-    };
-  }, [pan]);
+  const handleMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (event.button !== 0) return;
+      setDragging(true);
+      dragStart.current = {
+        x: event.clientX,
+        y: event.clientY,
+        panX: pan.x,
+        panY: pan.y,
+      };
+    },
+    [pan],
+  );
 
-  const handleMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (!dragging) return;
-    setPan({
-      x: dragStart.current.panX + event.clientX - dragStart.current.x,
-      y: dragStart.current.panY + event.clientY - dragStart.current.y,
-    });
-  }, [dragging]);
+  const handleMouseMove = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!dragging) return;
+      setPan({
+        x: dragStart.current.panX + event.clientX - dragStart.current.x,
+        y: dragStart.current.panY + event.clientY - dragStart.current.y,
+      });
+    },
+    [dragging],
+  );
 
   const stopDragging = useCallback(() => setDragging(false), []);
 
@@ -196,10 +218,7 @@ export function CapabilityMapPanel() {
           <MenuPopover>
             <MenuList>
               {CAPABILITY_MAP_EXPORT_OPTIONS.map((option) => (
-                <MenuItem
-                  key={option.format}
-                  onClick={() => void exportMap(option.format)}
-                >
+                <MenuItem key={option.format} onClick={() => void exportMap(option.format)}>
                   {option.label}
                 </MenuItem>
               ))}
@@ -382,7 +401,7 @@ function renderNodeBox(node: LayoutNode): React.JSX.Element {
             {line}
           </tspan>
         ))}
-        </text>
+      </text>
       {!isLeaf ? node.children.map((child) => renderNodeBox(child)) : null}
     </g>
   );
@@ -467,7 +486,11 @@ function visibleOptions(
   return [selected, ...filtered];
 }
 
-function mapStatus(workspaceOpen: boolean, rootCount: number, layout: LayoutResult | null): string | null {
+function mapStatus(
+  workspaceOpen: boolean,
+  rootCount: number,
+  layout: LayoutResult | null,
+): string | null {
   if (!workspaceOpen) return 'Open or initialize a workspace first.';
   if (rootCount === 0) return 'No capabilities yet.';
   if (!layout) return 'No matching capability root.';
@@ -479,7 +502,12 @@ function selectedRootLabel(options: CapabilityMapRootOption[], rootId: string): 
   return options.find((option) => option.id === rootId)?.path ?? 'Selected root';
 }
 
-function wrapLabel(text: string, maxWidth: number, fontSize: number, textBoxHeight: number): string[] {
+function wrapLabel(
+  text: string,
+  maxWidth: number,
+  fontSize: number,
+  textBoxHeight: number,
+): string[] {
   const lineHeight = Math.max(fontSize * 1.2, fontSize + 1);
   const maxLines = Math.max(1, Math.floor(textBoxHeight / lineHeight));
   const compact = text.replace(/\s+/g, ' ').trim();
@@ -508,7 +536,9 @@ function wrapLabel(text: string, maxWidth: number, fontSize: number, textBoxHeig
   if (lines.length <= maxLines) return lines;
 
   const visible = lines.slice(0, Math.max(0, maxLines - 1));
-  visible.push(truncateWithEllipsis(lines.slice(Math.max(0, maxLines - 1)).join(' '), maxWidth, measure));
+  visible.push(
+    truncateWithEllipsis(lines.slice(Math.max(0, maxLines - 1)).join(' '), maxWidth, measure),
+  );
   return visible;
 }
 

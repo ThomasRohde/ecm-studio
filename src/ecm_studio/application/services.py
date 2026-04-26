@@ -82,7 +82,13 @@ class SettingsService:
         theme_mode = patch.get("theme_mode")
         if theme_mode is not None and theme_mode not in {"system", "light", "dark"}:
             raise ValidationFailed("Theme mode must be system, light, or dark.")
-        return self.settings.update(theme_mode=theme_mode).to_dict()
+        update: dict[str, Any] = {"theme_mode": theme_mode}
+        if "view_setup" in patch:
+            view_setup = patch["view_setup"]
+            if view_setup is not None and not isinstance(view_setup, dict):
+                raise ValidationFailed("View setup must be an object or null.")
+            update["view_setup"] = view_setup
+        return self.settings.update(**update).to_dict()
 
 
 class WorkspaceService:

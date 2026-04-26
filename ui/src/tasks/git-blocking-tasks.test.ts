@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gitBlockingTaskOptions, type GitBlockingTaskName } from './git-blocking-tasks';
+import { type GitBlockingTaskName, gitBlockingTaskOptions } from './git-blocking-tasks';
 
 describe('git blocking task metadata', () => {
   it.each<[GitBlockingTaskName, string]>([

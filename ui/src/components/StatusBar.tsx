@@ -15,7 +15,11 @@ export function StatusBar() {
       <Text size={200}>Git: {gitStatus?.clean ? 'clean' : gitStatus ? 'dirty' : 'n/a'}</Text>
       <Text size={200}>Index: {workspace?.index_current ? 'current' : 'n/a'}</Text>
       <Text size={200}>Selected: {selected?.name ?? 'none'}</Text>
-      {error ? <Text size={200} className="status-error">{error}</Text> : null}
+      {error ? (
+        <Text size={200} className="status-error">
+          {error}
+        </Text>
+      ) : null}
       <Text size={200} className="status-version">
         {appInfo ? `${appInfo.name} v${appInfo.version}` : 'ECM Studio'}
       </Text>

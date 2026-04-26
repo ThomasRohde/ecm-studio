@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 import { api } from '../api/bridge';
-import type { AppSettings, ResolvedTheme, ThemeMode } from '../api/types';
+import type { AppSettings, ResolvedTheme, ThemeMode, ViewSetup } from '../api/types';
 
 interface SettingsState {
   settings: AppSettings;
+  loaded: boolean;
   load: () => Promise<void>;
   setThemeMode: (themeMode: ThemeMode) => Promise<void>;
+  setViewSetup: (viewSetup: ViewSetup | null) => Promise<void>;
   applySettings: (settings: AppSettings) => void;
 }
 
@@ -14,26 +16,34 @@ const defaultSettings: AppSettings = {
   theme_mode: 'system',
   resolved_theme: prefersDark() ? 'dark' : 'light',
   recent_workspaces: [],
+  view_setup: null,
 };
 
 export const useSettingsStore = create<SettingsState>((set) => ({
   settings: defaultSettings,
+  loaded: false,
 
   load: async () => {
     const settings = await api.settings.get();
     applyTheme(settings.resolved_theme);
-    set({ settings });
+    set({ settings, loaded: true });
   },
 
   setThemeMode: async (themeMode) => {
     const settings = await api.settings.update({ theme_mode: themeMode });
     applyTheme(settings.resolved_theme);
-    set({ settings });
+    set({ settings, loaded: true });
+  },
+
+  setViewSetup: async (viewSetup) => {
+    const settings = await api.settings.update({ view_setup: viewSetup });
+    applyTheme(settings.resolved_theme);
+    set({ settings, loaded: true });
   },
 
   applySettings: (settings) => {
     applyTheme(settings.resolved_theme);
-    set({ settings });
+    set({ settings, loaded: true });
   },
 }));
 
@@ -44,5 +54,7 @@ export function applyTheme(resolvedTheme: ResolvedTheme) {
 }
 
 function prefersDark() {
-  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+  return (
+    typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches
+  );
 }

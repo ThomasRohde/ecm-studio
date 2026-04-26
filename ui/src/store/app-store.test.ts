@@ -64,9 +64,11 @@ describe('app store workspace snapshots', () => {
     useAppStore.getState().applyWorkspaceSnapshot(workspaceSnapshot('C:/work/a', [selected]));
     useAppStore.getState().setSelected(selected);
 
-    useAppStore.getState().applyWorkspaceSnapshot(workspaceSnapshot('C:/work/b', [
-      capability('cap-a', 'Same ID In Different Workspace'),
-    ]));
+    useAppStore
+      .getState()
+      .applyWorkspaceSnapshot(
+        workspaceSnapshot('C:/work/b', [capability('cap-a', 'Same ID In Different Workspace')]),
+      );
 
     expect(useAppStore.getState().workspace?.path).toBe('C:/work/b');
     expect(useAppStore.getState().selected).toBeNull();
@@ -84,11 +86,13 @@ function workspaceSnapshot(path: string, tree: Capability[]): WorkspaceSnapshot 
     gitGraph: graph(),
     releaseStatus: releaseStatus(),
     integrationCandidates: integrationCandidates(),
-    auditEvents: [{
-      source: 'ecm/capability_versions.jsonl',
-      line: 1,
-      record: { id: 'event-1', action: 'create', summary: 'Created capability.' },
-    }],
+    auditEvents: [
+      {
+        source: 'ecm/capability_versions.jsonl',
+        line: 1,
+        record: { id: 'event-1', action: 'create', summary: 'Created capability.' },
+      },
+    ],
   };
 }
 
@@ -146,21 +150,25 @@ function gitStatus(): GitStatus {
 }
 
 function diagnostics(): Diagnostic[] {
-  return [{
-    code: 'INDEX_STALE',
-    message: 'SQLite projection is missing or stale.',
-    severity: 'warning',
-  }];
+  return [
+    {
+      code: 'INDEX_STALE',
+      message: 'SQLite projection is missing or stale.',
+      severity: 'warning',
+    },
+  ];
 }
 
 function history(): Checkpoint[] {
-  return [{
-    id: 'checkpoint-1',
-    message: 'Initial',
-    timestamp: '2026-04-26T00:00:00Z',
-    author: 'Test',
-    skipped: false,
-  }];
+  return [
+    {
+      id: 'checkpoint-1',
+      message: 'Initial',
+      timestamp: '2026-04-26T00:00:00Z',
+      author: 'Test',
+      skipped: false,
+    },
+  ];
 }
 
 function graph(): GitGraphData {

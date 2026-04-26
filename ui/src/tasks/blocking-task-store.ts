@@ -70,9 +70,7 @@ export const useBlockingTaskStore = create<BlockingTaskState>((set) => ({
   },
 
   setStep: (currentStep, progress) => {
-    set((state) => (
-      state.open ? { currentStep, progress } : state
-    ));
+    set((state) => (state.open ? { currentStep, progress } : state));
   },
 
   closeTask: () => set({ ...CLOSED_TASK }),
@@ -101,20 +99,21 @@ export const blockingTask = {
     const controller: BlockingTaskController = {
       setStep: (currentStep, progress) => {
         const index = steps.indexOf(currentStep);
-        useBlockingTaskStore.getState().setStep(
-          currentStep,
-          progress ?? progressForStep(index >= 0 ? index : stepIndex, steps.length),
-        );
+        useBlockingTaskStore
+          .getState()
+          .setStep(
+            currentStep,
+            progress ?? progressForStep(index >= 0 ? index : stepIndex, steps.length),
+          );
       },
     };
 
     if (progressMode === 'timed' && steps.length > 1) {
       timer = setInterval(() => {
         stepIndex = Math.min(stepIndex + 1, steps.length - 1);
-        useBlockingTaskStore.getState().setStep(
-          steps[stepIndex],
-          progressForStep(stepIndex, steps.length),
-        );
+        useBlockingTaskStore
+          .getState()
+          .setStep(steps[stepIndex], progressForStep(stepIndex, steps.length));
         if (stepIndex >= steps.length - 1 && timer) {
           clearInterval(timer);
           timer = undefined;

@@ -47,7 +47,9 @@ describe('workspace refresh workflow', () => {
     expect(state.diagnostics).toEqual([]);
     expect(state.gitStatus?.branch).toBe('main');
     expect(state.releaseStatus?.publish_blockers.length).toBeGreaterThanOrEqual(1);
-    expect(state.auditEvents.some((event) => event.record?.capability_id === created.id)).toBe(true);
+    expect(state.auditEvents.some((event) => event.record?.capability_id === created.id)).toBe(
+      true,
+    );
   });
 });
 

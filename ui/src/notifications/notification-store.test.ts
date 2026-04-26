@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../store/app-store';
-import { notify } from './notify';
 import {
-  HISTORY_LIMIT,
   defaultPersistent,
   defaultTtlMs,
+  HISTORY_LIMIT,
   notificationTimeoutMs,
   selectToastStack,
   useNotificationStore,
 } from './notification-store';
+import { notify } from './notify';
 
 beforeEach(() => {
   useNotificationStore.getState().reset();
@@ -88,9 +88,8 @@ describe('notification store', () => {
   });
 
   it('updates promise progress to success', async () => {
-    await expect(notify.promise(
-      async () => 'current',
-      {
+    await expect(
+      notify.promise(async () => 'current', {
         loading: { title: 'Rebuilding index', source: 'workspace' },
         success: (result) => ({
           title: 'Index rebuilt',
@@ -99,8 +98,8 @@ describe('notification store', () => {
           source: 'workspace',
         }),
         error: { title: 'Index rebuild failed', source: 'workspace' },
-      },
-    )).resolves.toBe('current');
+      }),
+    ).resolves.toBe('current');
 
     const [notification] = useNotificationStore.getState().notifications;
     expect(notification).toMatchObject({
@@ -113,24 +112,26 @@ describe('notification store', () => {
   });
 
   it('updates promise progress to persistent error and status summary', async () => {
-    await expect(notify.promise(
-      async () => {
-        throw new Error('Index is locked');
-      },
-      {
-        loading: { title: 'Rebuilding index', source: 'workspace' },
-        success: {
-          title: 'Index rebuilt',
-          intent: 'workspace.index.rebuilt',
-          source: 'workspace',
+    await expect(
+      notify.promise(
+        async () => {
+          throw new Error('Index is locked');
         },
-        error: {
-          title: 'Index rebuild failed',
-          intent: 'operation.failed',
-          source: 'workspace',
+        {
+          loading: { title: 'Rebuilding index', source: 'workspace' },
+          success: {
+            title: 'Index rebuilt',
+            intent: 'workspace.index.rebuilt',
+            source: 'workspace',
+          },
+          error: {
+            title: 'Index rebuild failed',
+            intent: 'operation.failed',
+            source: 'workspace',
+          },
         },
-      },
-    )).rejects.toThrow('Index is locked');
+      ),
+    ).rejects.toThrow('Index is locked');
 
     const [notification] = useNotificationStore.getState().notifications;
     expect(notification).toMatchObject({

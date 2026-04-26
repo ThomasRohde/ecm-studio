@@ -228,9 +228,9 @@ function toTreeNode(capability: Capability, fallbackOrder: number): TreeNode {
     name: capability.name,
     description: capability.description,
     order: Number.isFinite(capability.order) ? capability.order : fallbackOrder,
-    children: orderedCapabilities(capability.children ?? []).map((child, index) => (
-      toTreeNode(child, index)
-    )),
+    children: orderedCapabilities(capability.children ?? []).map((child, index) =>
+      toTreeNode(child, index),
+    ),
   };
 }
 
@@ -344,9 +344,10 @@ function calculateSize(
     else subtrees.push(child);
   }
 
-  const layout = subtrees.length > 0 && leaves.length > 0
-    ? computeBandedFlowLayout(subtrees, leaves, options)
-    : computeFlowLayout(node.children, options);
+  const layout =
+    subtrees.length > 0 && leaves.length > 0
+      ? computeBandedFlowLayout(subtrees, leaves, options)
+      : computeFlowLayout(node.children, options);
   node.size = { w: layout.w, h: layout.h };
   node.rows = layout.rows;
 }
@@ -413,9 +414,13 @@ function computeBandedFlowLayout(
       targetW - 2 * options.padding,
       options,
     );
-    const layout = remainingLeaves.length > 0
-      ? buildLayoutFromRows([...clonedRows, ...packRows(remainingLeaves, targetW, options).rows], options)
-      : buildLayoutFromRows(clonedRows, options);
+    const layout =
+      remainingLeaves.length > 0
+        ? buildLayoutFromRows(
+            [...clonedRows, ...packRows(remainingLeaves, targetW, options).rows],
+            options,
+          )
+        : buildLayoutFromRows(clonedRows, options);
     const score = scoreLayout(layout, options);
 
     if (score < bestScore) {
@@ -447,11 +452,7 @@ function buildLayoutFromRows(rows: RowMeta[], options: LayoutOptions): PackResul
   return { w: maxRowWidth + 2 * options.padding, h: height + options.padding, rows };
 }
 
-function packRows(
-  children: LayoutNode[],
-  targetWidth: number,
-  options: LayoutOptions,
-): PackResult {
+function packRows(children: LayoutNode[], targetWidth: number, options: LayoutOptions): PackResult {
   const contentWidth = targetWidth - 2 * options.padding;
   const rows: LayoutNode[][] = [];
   let currentRow: LayoutNode[] = [];

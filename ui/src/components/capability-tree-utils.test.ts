@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
+import type { Capability } from '../api/types';
+import type { TreeItemRef } from './capability-tree-utils';
 import {
-  CAPABILITY_TREE_ROOT_ID,
   CAPABILITY_TREE_REORDER_AREA,
-  ROOT_PARENT_OPTION_ID,
+  CAPABILITY_TREE_ROOT_ID,
   getCapabilityDropMoveRequest,
   getValidParentCandidates,
   parentIdFromOptionValue,
   parentOptionLabel,
   parentOptionValue,
+  ROOT_PARENT_OPTION_ID,
   reconcileExpandedCapabilityItems,
 } from './capability-tree-utils';
-import type { TreeItemRef } from './capability-tree-utils';
-import type { Capability } from '../api/types';
 
 function item(id: string, descendantOf: string[] = []): TreeItemRef {
   return {
@@ -58,10 +58,16 @@ describe('capability tree utilities', () => {
   });
 
   it('maps ordered Headless Tree targets to move requests', () => {
-    expect(getCapabilityDropMoveRequest(['child'], {
-      item: item('parent'),
-      insertionIndex: 2,
-    }, true)).toEqual({
+    expect(
+      getCapabilityDropMoveRequest(
+        ['child'],
+        {
+          item: item('parent'),
+          insertionIndex: 2,
+        },
+        true,
+      ),
+    ).toEqual({
       id: 'child',
       parentId: 'parent',
       order: 2,
@@ -69,19 +75,31 @@ describe('capability tree utilities', () => {
   });
 
   it('maps unordered targets to append-as-child move requests', () => {
-    expect(getCapabilityDropMoveRequest(['child'], {
-      item: item('parent'),
-    }, false)).toEqual({
+    expect(
+      getCapabilityDropMoveRequest(
+        ['child'],
+        {
+          item: item('parent'),
+        },
+        false,
+      ),
+    ).toEqual({
       id: 'child',
       parentId: 'parent',
     });
   });
 
   it('maps synthetic root ordered targets to root-level move requests', () => {
-    expect(getCapabilityDropMoveRequest(['child'], {
-      item: item(CAPABILITY_TREE_ROOT_ID),
-      insertionIndex: 0,
-    }, true)).toEqual({
+    expect(
+      getCapabilityDropMoveRequest(
+        ['child'],
+        {
+          item: item(CAPABILITY_TREE_ROOT_ID),
+          insertionIndex: 0,
+        },
+        true,
+      ),
+    ).toEqual({
       id: 'child',
       parentId: null,
       order: 0,
@@ -89,23 +107,35 @@ describe('capability tree utilities', () => {
   });
 
   it('rejects self and descendant drops', () => {
-    expect(getCapabilityDropMoveRequest(['child'], {
-      item: item('child'),
-      insertionIndex: 0,
-    }, true)).toBeNull();
-    expect(getCapabilityDropMoveRequest(['parent'], {
-      item: item('descendant', ['parent']),
-      insertionIndex: 0,
-    }, true)).toBeNull();
+    expect(
+      getCapabilityDropMoveRequest(
+        ['child'],
+        {
+          item: item('child'),
+          insertionIndex: 0,
+        },
+        true,
+      ),
+    ).toBeNull();
+    expect(
+      getCapabilityDropMoveRequest(
+        ['parent'],
+        {
+          item: item('descendant', ['parent']),
+          insertionIndex: 0,
+        },
+        true,
+      ),
+    ).toBeNull();
   });
 
   it('preserves only valid expanded item ids', () => {
     const tree = [capability('root', [capability('child')])];
-    expect(reconcileExpandedCapabilityItems(
-      [CAPABILITY_TREE_ROOT_ID, 'root', 'missing'],
-      tree,
-      ['child'],
-    )).toEqual([CAPABILITY_TREE_ROOT_ID, 'root', 'child']);
+    expect(
+      reconcileExpandedCapabilityItems([CAPABILITY_TREE_ROOT_ID, 'root', 'missing'], tree, [
+        'child',
+      ]),
+    ).toEqual([CAPABILITY_TREE_ROOT_ID, 'root', 'child']);
   });
 
   it('filters invalid manual move parent candidates', () => {

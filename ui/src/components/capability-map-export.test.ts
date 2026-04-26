@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Capability, MapExportFormat, MapExportResult } from '../api/types';
-import { CAPABILITY_MAP_ALL_ROOTS, layoutCapabilityMap } from './capability-map-layout';
 import {
   buildCapabilityMapHtmlExport,
   buildCapabilityMapSvgExport,
   saveCapabilityMapExport,
   suggestedCapabilityMapExportFilename,
 } from './capability-map-export';
+import { CAPABILITY_MAP_ALL_ROOTS, layoutCapabilityMap } from './capability-map-layout';
 
 const GENERATED_AT = '2026-01-01T00:00:00.000Z';
 
@@ -146,7 +146,14 @@ function capabilityModel(): Capability[] {
     opportunityManagement,
   ]);
   const partnerSales = capability('partner-sales', 'Partner Sales', 1, 'sales', [onboarding]);
-  const sales = capability('sales', 'Sales & <Growth>', 0, null, [directSales, partnerSales], 'Owns "pipeline" & growth');
+  const sales = capability(
+    'sales',
+    'Sales & <Growth>',
+    0,
+    null,
+    [directSales, partnerSales],
+    'Owns "pipeline" & growth',
+  );
   const operations = capability('operations', 'Operations', 1, null, [
     capability('fulfillment', 'Fulfillment', 0, 'operations'),
   ]);

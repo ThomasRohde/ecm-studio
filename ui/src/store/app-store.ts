@@ -83,17 +83,18 @@ export const useAppStore = create<AppState>((set) => ({
   workspace: null,
   ...EMPTY_WORKSPACE_DATA,
   setAppInfo: (appInfo) => set({ appInfo }),
-  setWorkspace: (workspace) => set((state) => {
-    if (!workspace) return { workspace: null, ...EMPTY_WORKSPACE_DATA };
-    if (state.workspace?.path === workspace.path) {
-      return { workspace, gitStatus: workspace.git ?? state.gitStatus };
-    }
-    return {
-      ...EMPTY_WORKSPACE_DATA,
-      workspace,
-      gitStatus: workspace.git ?? null,
-    };
-  }),
+  setWorkspace: (workspace) =>
+    set((state) => {
+      if (!workspace) return { workspace: null, ...EMPTY_WORKSPACE_DATA };
+      if (state.workspace?.path === workspace.path) {
+        return { workspace, gitStatus: workspace.git ?? state.gitStatus };
+      }
+      return {
+        ...EMPTY_WORKSPACE_DATA,
+        workspace,
+        gitStatus: workspace.git ?? null,
+      };
+    }),
   setTree: (tree) => set({ tree }),
   setSelected: (capability) => set({ selected: capability, selectedId: capability?.id ?? null }),
   setGitStatus: (gitStatus) => set({ gitStatus }),
@@ -103,39 +104,42 @@ export const useAppStore = create<AppState>((set) => ({
     gitGraph,
     releaseStatus,
     integrationCandidates,
-  }) => set({
-    gitStatus,
-    gitHistory,
-    gitGraph,
-    releaseStatus,
-    integrationCandidates,
-  }),
+  }) =>
+    set({
+      gitStatus,
+      gitHistory,
+      gitGraph,
+      releaseStatus,
+      integrationCandidates,
+    }),
   setDiagnostics: (diagnostics) => set({ diagnostics }),
   setAuditEvents: (auditEvents) => set({ auditEvents }),
   setError: (error) => set({ error }),
-  applyWorkspaceSnapshot: (snapshot) => set((state) => {
-    const sameWorkspace = state.workspace?.path === snapshot.workspace.path;
-    const selectedId = sameWorkspace ? state.selectedId : null;
-    const selected = selectedId
-      ? flattenCapabilities(snapshot.tree).find((capability) => capability.id === selectedId) ?? null
-      : null;
+  applyWorkspaceSnapshot: (snapshot) =>
+    set((state) => {
+      const sameWorkspace = state.workspace?.path === snapshot.workspace.path;
+      const selectedId = sameWorkspace ? state.selectedId : null;
+      const selected = selectedId
+        ? (flattenCapabilities(snapshot.tree).find((capability) => capability.id === selectedId) ??
+          null)
+        : null;
 
-    return {
-      workspace: snapshot.workspace,
-      tree: snapshot.tree,
-      selected,
-      selectedId: selected?.id ?? null,
-      searchResults: [],
-      gitStatus: snapshot.gitStatus,
-      gitHistory: snapshot.gitHistory,
-      gitGraph: snapshot.gitGraph,
-      releaseStatus: snapshot.releaseStatus,
-      integrationCandidates: snapshot.integrationCandidates,
-      diagnostics: snapshot.diagnostics,
-      auditEvents: snapshot.auditEvents,
-      error: null,
-    };
-  }),
+      return {
+        workspace: snapshot.workspace,
+        tree: snapshot.tree,
+        selected,
+        selectedId: selected?.id ?? null,
+        searchResults: [],
+        gitStatus: snapshot.gitStatus,
+        gitHistory: snapshot.gitHistory,
+        gitGraph: snapshot.gitGraph,
+        releaseStatus: snapshot.releaseStatus,
+        integrationCandidates: snapshot.integrationCandidates,
+        diagnostics: snapshot.diagnostics,
+        auditEvents: snapshot.auditEvents,
+        error: null,
+      };
+    }),
   clearWorkspaceData: () => set({ workspace: null, ...EMPTY_WORKSPACE_DATA }),
   reset: () => set({ appInfo: null, workspace: null, ...EMPTY_WORKSPACE_DATA }),
 }));

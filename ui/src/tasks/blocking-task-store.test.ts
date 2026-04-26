@@ -10,7 +10,10 @@ describe('blocking task service', () => {
   it('opens with initial task state', async () => {
     let resolveTask: (value: string) => void = () => {};
     const promise = blockingTask.run(
-      () => new Promise<string>((resolve) => { resolveTask = resolve; }),
+      () =>
+        new Promise<string>((resolve) => {
+          resolveTask = resolve;
+        }),
       {
         title: 'Creating checkpoint',
         message: 'Saving changes.',
@@ -37,11 +40,18 @@ describe('blocking task service', () => {
     vi.useFakeTimers();
     let resolveTask: (value: string) => void = () => {};
     const promise = blockingTask.run(
-      () => new Promise<string>((resolve) => { resolveTask = resolve; }),
+      () =>
+        new Promise<string>((resolve) => {
+          resolveTask = resolve;
+        }),
       {
         title: 'Cutting release',
         message: 'Creating release.',
-        steps: ['Validating release inputs', 'Checking release blockers', 'Refreshing Git and release state'],
+        steps: [
+          'Validating release inputs',
+          'Checking release blockers',
+          'Refreshing Git and release state',
+        ],
         kind: 'release',
         stepDelayMs: 50,
       },
@@ -71,7 +81,9 @@ describe('blocking task service', () => {
     const promise = blockingTask.run(
       async (controller) => {
         controller.setStep('Loading capability tree');
-        await new Promise<void>((resolve) => { continueTask = resolve; });
+        await new Promise<void>((resolve) => {
+          continueTask = resolve;
+        });
         controller.setStep('Running diagnostics');
         return 'refreshed';
       },
@@ -95,29 +107,30 @@ describe('blocking task service', () => {
   });
 
   it('closes after success', async () => {
-    await expect(blockingTask.run(
-      async () => 'ok',
-      {
+    await expect(
+      blockingTask.run(async () => 'ok', {
         title: 'Receiving updates',
         message: 'Pulling remote updates.',
         steps: ['Validating Git state'],
-      },
-    )).resolves.toBe('ok');
+      }),
+    ).resolves.toBe('ok');
 
     expect(useBlockingTaskStore.getState().open).toBe(false);
   });
 
   it('closes after error and rethrows', async () => {
-    await expect(blockingTask.run(
-      async () => {
-        throw new Error('Pull failed');
-      },
-      {
-        title: 'Receiving updates',
-        message: 'Pulling remote updates.',
-        steps: ['Validating Git state'],
-      },
-    )).rejects.toThrow('Pull failed');
+    await expect(
+      blockingTask.run(
+        async () => {
+          throw new Error('Pull failed');
+        },
+        {
+          title: 'Receiving updates',
+          message: 'Pulling remote updates.',
+          steps: ['Validating Git state'],
+        },
+      ),
+    ).rejects.toThrow('Pull failed');
 
     expect(useBlockingTaskStore.getState().open).toBe(false);
   });
@@ -125,7 +138,10 @@ describe('blocking task service', () => {
   it('rejects concurrent task starts while one is active', async () => {
     let resolveTask: (value: string) => void = () => {};
     const first = blockingTask.run(
-      () => new Promise<string>((resolve) => { resolveTask = resolve; }),
+      () =>
+        new Promise<string>((resolve) => {
+          resolveTask = resolve;
+        }),
       {
         title: 'Creating checkpoint',
         message: 'Saving changes.',
@@ -133,14 +149,13 @@ describe('blocking task service', () => {
       },
     );
 
-    await expect(blockingTask.run(
-      async () => 'second',
-      {
+    await expect(
+      blockingTask.run(async () => 'second', {
         title: 'Changing scenario',
         message: 'Switching branches.',
         steps: ['Validating Git state'],
-      },
-    )).rejects.toThrow('BLOCKING_TASK_ACTIVE');
+      }),
+    ).rejects.toThrow('BLOCKING_TASK_ACTIVE');
 
     resolveTask('first');
     await expect(first).resolves.toBe('first');

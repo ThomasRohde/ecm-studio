@@ -1,14 +1,31 @@
-import { useEffect, useState } from 'react';
-import type { MouseEvent } from 'react';
 import { Button, Input, Text } from '@fluentui/react-components';
-import { Gitgraph, MergeStyle, Mode, Orientation, TemplateName, templateExtend } from '@gitgraph/react';
+import {
+  Gitgraph,
+  MergeStyle,
+  Mode,
+  Orientation,
+  TemplateName,
+  templateExtend,
+} from '@gitgraph/react';
+import type { MouseEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../api/bridge';
-import type { AuditEvent, BranchIntegrationCandidate, GitGraphData, GitStatus, ImportMode, ImportPreview, ModelFormat, ReleaseBlocker, ReleaseStatus } from '../api/types';
-import { notify, errorMessage } from '../notifications/notify';
+import type {
+  AuditEvent,
+  BranchIntegrationCandidate,
+  GitGraphData,
+  GitStatus,
+  ImportMode,
+  ImportPreview,
+  ModelFormat,
+  ReleaseBlocker,
+  ReleaseStatus,
+} from '../api/types';
+import { errorMessage, notify } from '../notifications/notify';
 import { useAppStore } from '../store/app-store';
 import { useSettingsStore } from '../store/settings-store';
-import { blockingTask } from '../tasks/blocking-task-store';
 import type { BlockingTaskOptions } from '../tasks/blocking-task-store';
+import { blockingTask } from '../tasks/blocking-task-store';
 import { gitBlockingTaskOptions } from '../tasks/git-blocking-tasks';
 import {
   refreshWorkspaceViews,
@@ -147,16 +164,27 @@ export function WorkspacePanel() {
       <Text weight="semibold">Workspace</Text>
       <Input value={name} onChange={(_, d) => setName(d.value)} placeholder="Workspace name" />
       <div className="toolbar">
-        <Button appearance="primary" onClick={() => void pickOpen()}>Open Workspace</Button>
+        <Button appearance="primary" onClick={() => void pickOpen()}>
+          Open Workspace
+        </Button>
         <Button onClick={() => void pickInit()}>Create Workspace</Button>
-        <Button disabled={!workspace} onClick={() => void rebuild()}>Rebuild Index</Button>
+        <Button disabled={!workspace} onClick={() => void rebuild()}>
+          Rebuild Index
+        </Button>
       </div>
 
       {settings.recent_workspaces.length ? (
         <div className="stack compact">
-          <Text size={200} weight="semibold">Recent Workspaces</Text>
+          <Text size={200} weight="semibold">
+            Recent Workspaces
+          </Text>
           {settings.recent_workspaces.map((recent) => (
-            <button className="link-card" key={recent} onClick={() => void open(recent)} type="button">
+            <button
+              className="link-card"
+              key={recent}
+              onClick={() => void open(recent)}
+              type="button"
+            >
               {recent}
             </button>
           ))}
@@ -168,9 +196,15 @@ export function WorkspacePanel() {
       </Button>
       {advanced ? (
         <div className="stack compact">
-          <Input value={path} onChange={(_, d) => setPath(d.value)} placeholder="C:\\path\\to\\repo" />
+          <Input
+            value={path}
+            onChange={(_, d) => setPath(d.value)}
+            placeholder="C:\\path\\to\\repo"
+          />
           <div className="toolbar">
-            <Button appearance="primary" onClick={() => void init()}>Initialize Path</Button>
+            <Button appearance="primary" onClick={() => void init()}>
+              Initialize Path
+            </Button>
             <Button onClick={() => void open()}>Open Path</Button>
           </div>
         </div>
@@ -182,7 +216,9 @@ export function WorkspacePanel() {
           <Text>Path: {workspace.path}</Text>
           <Text>Index: {workspace.index_current ? 'current' : 'stale'}</Text>
         </div>
-      ) : <Text>No workspace open.</Text>}
+      ) : (
+        <Text>No workspace open.</Text>
+      )}
     </section>
   );
 }
@@ -286,7 +322,11 @@ export function ImportExportPanel() {
       <Text weight="semibold">Import / Export</Text>
       <Text size={200}>Move capabilities as JSONL, CSV, or portable JSON bundle.</Text>
       <div className="toolbar">
-        <select className="select" value={format} onChange={(event) => setFormat(event.target.value as ModelFormat)}>
+        <select
+          className="select"
+          value={format}
+          onChange={(event) => setFormat(event.target.value as ModelFormat)}
+        >
           <option value="jsonl">JSONL</option>
           <option value="csv">CSV</option>
           <option value="json_bundle">JSON bundle</option>
@@ -298,13 +338,19 @@ export function ImportExportPanel() {
       {exportPath ? <Text size={200}>Exported to {exportPath}</Text> : null}
 
       <div className="toolbar">
-        <select className="select" value={mode} onChange={(event) => setMode(event.target.value as ImportMode)}>
+        <select
+          className="select"
+          value={mode}
+          onChange={(event) => setMode(event.target.value as ImportMode)}
+        >
           <option value="append">Append new capabilities</option>
           <option value="replace">Replace current model</option>
           <option value="merge_by_id">Merge by ID</option>
           <option value="validate_only">Validate only</option>
         </select>
-        <Button disabled={!workspace} onClick={() => void previewImport()}>Choose File + Preview</Button>
+        <Button disabled={!workspace} onClick={() => void previewImport()}>
+          Choose File + Preview
+        </Button>
         <Button disabled={!canApplyImportPreview(preview)} onClick={() => void applyImport()}>
           Apply Import
         </Button>
@@ -313,7 +359,9 @@ export function ImportExportPanel() {
       {preview ? (
         <div className="card">
           <Text weight="semibold">Preview: {preview.source_path}</Text>
-          <Text size={200}>Format {preview.format}, mode {preview.mode}</Text>
+          <Text size={200}>
+            Format {preview.format}, mode {preview.mode}
+          </Text>
           <div className="metric-row">
             <span>Total {preview.total}</span>
             <span>Added {preview.added}</span>
@@ -321,12 +369,19 @@ export function ImportExportPanel() {
             <span>Skipped {preview.skipped}</span>
             <span>Invalid {preview.invalid}</span>
           </div>
-          {preview.checkpoint_id ? <Text size={200}>Checkpoint: {preview.checkpoint_id.slice(0, 10)}</Text> : null}
+          {preview.checkpoint_id ? (
+            <Text size={200}>Checkpoint: {preview.checkpoint_id.slice(0, 10)}</Text>
+          ) : null}
           {preview.diagnostics.map((item, index) => (
             <div key={`${item.code}-${index}`} className={`card ${item.severity}`}>
               <Text weight="semibold">{item.code}</Text>
               <Text>{item.message}</Text>
-              {item.path ? <Text size={200}>{item.path}{item.line ? `:${item.line}` : ''}</Text> : null}
+              {item.path ? (
+                <Text size={200}>
+                  {item.path}
+                  {item.line ? `:${item.line}` : ''}
+                </Text>
+              ) : null}
             </div>
           ))}
         </div>
@@ -370,7 +425,8 @@ export function GitPanel() {
   async function runGitOperation<T>(
     action: () => Promise<T>,
     success: {
-      intent: 'git.checkpoint.created'
+      intent:
+        | 'git.checkpoint.created'
         | 'git.branch.created'
         | 'git.branch.switched'
         | 'git.pull.completed'
@@ -513,7 +569,10 @@ export function GitPanel() {
         dedupeKey: `release.cut.${releaseVersion}`,
       },
       'Could not cut release',
-      gitBlockingTaskOptions('cutRelease', `Version: ${releaseVersion}\nTag: ${releaseTagForVersion(releaseVersion)}`),
+      gitBlockingTaskOptions(
+        'cutRelease',
+        `Version: ${releaseVersion}\nTag: ${releaseTagForVersion(releaseVersion)}`,
+      ),
     );
   }
 
@@ -561,7 +620,9 @@ export function GitPanel() {
   useEffect(() => {
     if (!workspace) return;
     setContextBranch((current) => validBranchOrFallback(current, branches, gitStatus?.branch));
-    setIntegrationBranch((current) => validIntegrationBranchOrFallback(current, integrationCandidates));
+    setIntegrationBranch((current) =>
+      validIntegrationBranchOrFallback(current, integrationCandidates),
+    );
   }, [workspace?.path, gitStatus?.branch, branchKey, candidateKey]);
 
   const clean = gitStatus?.clean ?? false;
@@ -571,14 +632,15 @@ export function GitPanel() {
   const integrableBranches = integrationCandidates
     .filter((candidate) => candidate.integrable)
     .map((candidate) => candidate.name);
-  const pendingCount = (gitStatus?.changed_files?.length ?? 0) + (gitStatus?.untracked_files?.length ?? 0);
+  const pendingCount =
+    (gitStatus?.changed_files?.length ?? 0) + (gitStatus?.untracked_files?.length ?? 0);
   const releaseTag = releaseTagForVersion(releaseVersion);
   const canCut = canCutRelease(releaseStatus, gitStatus, releaseVersion);
   const canPublish = canPublishRelease(releaseStatus, gitStatus);
   const remoteLabel = releaseStatus?.remote?.is_github
     ? `${releaseStatus.remote.host}/${releaseStatus.remote.owner}/${releaseStatus.remote.repo}`
     : gitStatus?.has_remote
-      ? gitStatus.upstream ?? 'Remote configured'
+      ? (gitStatus.upstream ?? 'Remote configured')
       : 'Local workspace only';
 
   return (
@@ -596,17 +658,31 @@ export function GitPanel() {
         <div className="card error workflow-card">
           <Text weight="semibold">Integration conflict detected</Text>
           <Text size={200}>Abort the integration before changing scenario or publishing.</Text>
-          {(gitStatus?.conflicted_files ?? []).map((file) => <Text key={file}>{file}</Text>)}
-          <Button appearance="primary" onClick={() => void abortMerge()}>Abort Integration</Button>
+          {(gitStatus?.conflicted_files ?? []).map((file) => (
+            <Text key={file}>{file}</Text>
+          ))}
+          <Button appearance="primary" onClick={() => void abortMerge()}>
+            Abort Integration
+          </Button>
         </div>
       ) : null}
 
       <div className="workflow-grid">
         <div className="card workflow-card">
           <Text weight="semibold">Checkpoint</Text>
-          <Text size={200}>{pendingCount ? `${pendingCount} pending file changes.` : 'No pending file changes.'}</Text>
-          <Input value={message} onChange={(_, d) => setMessage(d.value)} aria-label="Checkpoint message" />
-          <Button disabled={!isRepo || mergeInProgress} appearance="primary" onClick={() => void checkpoint()}>
+          <Text size={200}>
+            {pendingCount ? `${pendingCount} pending file changes.` : 'No pending file changes.'}
+          </Text>
+          <Input
+            value={message}
+            onChange={(_, d) => setMessage(d.value)}
+            aria-label="Checkpoint message"
+          />
+          <Button
+            disabled={!isRepo || mergeInProgress}
+            appearance="primary"
+            onClick={() => void checkpoint()}
+          >
             Create Checkpoint
           </Button>
         </div>
@@ -614,7 +690,11 @@ export function GitPanel() {
         <div className="card workflow-card">
           <Text weight="semibold">New Scenario</Text>
           <Text size={200}>Starts from {gitStatus?.branch ?? 'the current scenario'}.</Text>
-          <Input value={branchName} onChange={(_, d) => setBranchName(d.value)} aria-label="Scenario name" />
+          <Input
+            value={branchName}
+            onChange={(_, d) => setBranchName(d.value)}
+            aria-label="Scenario name"
+          />
           <Button disabled={!canRisk} onClick={() => void createBranch()}>
             Create Scenario
           </Button>
@@ -623,21 +703,51 @@ export function GitPanel() {
         <div className="card workflow-card">
           <Text weight="semibold">Change Scenario</Text>
           <Text size={200}>Open another scenario for editing.</Text>
-          <select className="select" value={contextBranch} onChange={(event) => setContextBranch(event.target.value)}>
-            {branches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+          <select
+            className="select"
+            value={contextBranch}
+            onChange={(event) => setContextBranch(event.target.value)}
+          >
+            {branches.map((branch) => (
+              <option key={branch} value={branch}>
+                {branch}
+              </option>
+            ))}
           </select>
-          <Button disabled={!canRisk || !contextBranch || contextBranch === gitStatus?.branch} onClick={() => void switchBranch()}>
+          <Button
+            disabled={!canRisk || !contextBranch || contextBranch === gitStatus?.branch}
+            onClick={() => void switchBranch()}
+          >
             Change Scenario
           </Button>
         </div>
 
         <div className="card workflow-card">
           <Text weight="semibold">Integrate Scenario</Text>
-          <Text size={200}>Bring another scenario into {gitStatus?.branch ?? 'the current scenario'}.</Text>
-          <select className="select" value={integrationBranch} onChange={(event) => setIntegrationBranch(event.target.value)}>
-            {integrableBranches.length ? integrableBranches.map((branch) => <option key={branch} value={branch}>{branch}</option>) : <option value="">No scenarios with pending integration</option>}
+          <Text size={200}>
+            Bring another scenario into {gitStatus?.branch ?? 'the current scenario'}.
+          </Text>
+          <select
+            className="select"
+            value={integrationBranch}
+            onChange={(event) => setIntegrationBranch(event.target.value)}
+          >
+            {integrableBranches.length ? (
+              integrableBranches.map((branch) => (
+                <option key={branch} value={branch}>
+                  {branch}
+                </option>
+              ))
+            ) : (
+              <option value="">No scenarios with pending integration</option>
+            )}
           </select>
-          <Button disabled={!canRisk || !integrationBranch || !integrableBranches.includes(integrationBranch)} onClick={() => void mergeBranch()}>
+          <Button
+            disabled={
+              !canRisk || !integrationBranch || !integrableBranches.includes(integrationBranch)
+            }
+            onClick={() => void mergeBranch()}
+          >
             Integrate Into Current
           </Button>
         </div>
@@ -645,14 +755,22 @@ export function GitPanel() {
         <div className="card workflow-card">
           <Text weight="semibold">Release</Text>
           <Text size={200}>{remoteLabel}</Text>
-          <Text size={200}>Outgoing {gitStatus?.ahead ?? 0}; incoming {gitStatus?.behind ?? 0}</Text>
+          <Text size={200}>
+            Outgoing {gitStatus?.ahead ?? 0}; incoming {gitStatus?.behind ?? 0}
+          </Text>
           <label className="field-label">
             Version
-            <Input value={releaseVersion} onChange={(_, d) => setReleaseVersion(d.value)} aria-label="Release version" />
+            <Input
+              value={releaseVersion}
+              onChange={(_, d) => setReleaseVersion(d.value)}
+              aria-label="Release version"
+            />
           </label>
           <Text size={200}>Tag {releaseTag}</Text>
           {releaseStatus?.latest_release ? (
-            <Text size={200}>Latest {releaseStatus.latest_release.tag} ({releaseStatus.latest_release.state})</Text>
+            <Text size={200}>
+              Latest {releaseStatus.latest_release.tag} ({releaseStatus.latest_release.state})
+            </Text>
           ) : null}
           <div className="toolbar">
             <Button disabled={!canRisk || !gitStatus?.has_remote} onClick={() => void pull()}>
@@ -666,7 +784,10 @@ export function GitPanel() {
             </Button>
           </div>
           <ReleaseBlockers blockers={releaseStatus?.cut_blockers ?? []} title="Cut blocked" />
-          <ReleaseBlockers blockers={releaseStatus?.publish_blockers ?? []} title="Publish blocked" />
+          <ReleaseBlockers
+            blockers={releaseStatus?.publish_blockers ?? []}
+            title="Publish blocked"
+          />
           {releaseStatus?.latest_release?.github_release_url ? (
             <a
               className="release-link"
@@ -690,7 +811,9 @@ export function GitPanel() {
           {history.map((item) => (
             <div key={item.id || item.message} className="card">
               <Text weight="semibold">{item.message}</Text>
-              <Text size={200}>{item.id.slice(0, 10)} {item.timestamp}</Text>
+              <Text size={200}>
+                {item.id.slice(0, 10)} {item.timestamp}
+              </Text>
             </div>
           ))}
           {history.length === 0 ? <Text size={200}>No checkpoints yet.</Text> : null}
@@ -711,12 +834,12 @@ export function canCutRelease(
   version: string,
 ): boolean {
   return Boolean(
-    gitStatus?.is_repo
-      && gitStatus.clean
-      && gitStatus.has_remote
-      && !gitStatus.merge_in_progress
-      && releaseStatus?.can_cut
-      && releaseTagForVersion(version) !== 'ecm-vX.Y.Z',
+    gitStatus?.is_repo &&
+      gitStatus.clean &&
+      gitStatus.has_remote &&
+      !gitStatus.merge_in_progress &&
+      releaseStatus?.can_cut &&
+      releaseTagForVersion(version) !== 'ecm-vX.Y.Z',
   );
 }
 
@@ -725,12 +848,12 @@ export function canPublishRelease(
   gitStatus: GitStatus | null | undefined,
 ): boolean {
   return Boolean(
-    gitStatus?.is_repo
-      && gitStatus.clean
-      && gitStatus.has_remote
-      && !gitStatus.merge_in_progress
-      && releaseStatus?.can_publish
-      && releaseStatus.latest_release,
+    gitStatus?.is_repo &&
+      gitStatus.clean &&
+      gitStatus.has_remote &&
+      !gitStatus.merge_in_progress &&
+      releaseStatus?.can_publish &&
+      releaseStatus.latest_release,
   );
 }
 
@@ -738,9 +861,13 @@ function ReleaseBlockers({ blockers, title }: { blockers: ReleaseBlocker[]; titl
   if (blockers.length === 0) return null;
   return (
     <div className="release-blockers">
-      <Text size={200} weight="semibold">{title}</Text>
+      <Text size={200} weight="semibold">
+        {title}
+      </Text>
       {blockers.map((blocker) => (
-        <Text size={200} key={`${title}-${blocker.code}`}>{blocker.message}</Text>
+        <Text size={200} key={`${title}-${blocker.code}`}>
+          {blocker.message}
+        </Text>
       ))}
     </div>
   );
@@ -831,9 +958,10 @@ export function DiagnosticsPanel() {
         notify[errorCount || warningCount ? 'warning' : 'success']({
           intent: 'diagnostics.completed',
           title: 'Diagnostics completed',
-          body: errorCount || warningCount
-            ? `${errorCount} errors and ${warningCount} warnings found.`
-            : 'No diagnostics reported.',
+          body:
+            errorCount || warningCount
+              ? `${errorCount} errors and ${warningCount} warnings found.`
+              : 'No diagnostics reported.',
           source: 'diagnostics',
           dedupeKey: 'diagnostics.run',
           action: { label: 'Open diagnostics', panelId: 'diagnostics' },
@@ -853,14 +981,26 @@ export function DiagnosticsPanel() {
 
   return (
     <section className="panel stack">
-      <div className="toolbar"><Text weight="semibold">Diagnostics</Text><Button onClick={() => void run()}>Run</Button></div>
-      {diagnostics.length === 0 ? <Text>No diagnostics.</Text> : diagnostics.map((item, index) => (
-        <div key={`${item.code}-${index}`} className={`card ${item.severity}`}>
-          <Text weight="semibold">{item.code}</Text>
-          <Text>{item.message}</Text>
-          {item.path ? <Text size={200}>{item.path}{item.line ? `:${item.line}` : ''}</Text> : null}
-        </div>
-      ))}
+      <div className="toolbar">
+        <Text weight="semibold">Diagnostics</Text>
+        <Button onClick={() => void run()}>Run</Button>
+      </div>
+      {diagnostics.length === 0 ? (
+        <Text>No diagnostics.</Text>
+      ) : (
+        diagnostics.map((item, index) => (
+          <div key={`${item.code}-${index}`} className={`card ${item.severity}`}>
+            <Text weight="semibold">{item.code}</Text>
+            <Text>{item.message}</Text>
+            {item.path ? (
+              <Text size={200}>
+                {item.path}
+                {item.line ? `:${item.line}` : ''}
+              </Text>
+            ) : null}
+          </div>
+        ))
+      )}
     </section>
   );
 }
@@ -887,7 +1027,9 @@ export function AuditPanel() {
     }
   }
 
-  useEffect(() => { setExpandedKey(null); }, [workspace?.path, events]);
+  useEffect(() => {
+    setExpandedKey(null);
+  }, [workspace?.path, events]);
 
   return (
     <section className="panel stack audit-panel">
@@ -904,7 +1046,7 @@ export function AuditPanel() {
             key={auditEventKey(event, index)}
             onToggle={() => {
               const key = auditEventKey(event, index);
-              setExpandedKey((current) => current === key ? null : key);
+              setExpandedKey((current) => (current === key ? null : key));
             }}
           />
         ))}
@@ -925,7 +1067,8 @@ function AuditListItem({
   const record = event.record;
   const action = auditField(record, 'action') ?? (event.error ? 'error' : 'event');
   const title = auditField(record, 'summary') ?? event.error?.message ?? 'Audit event';
-  const timestamp = auditField(record, 'created_at') ?? auditField(record, 'updated_at') ?? 'No timestamp';
+  const timestamp =
+    auditField(record, 'created_at') ?? auditField(record, 'updated_at') ?? 'No timestamp';
   const target = auditTarget(record);
   const actor = auditField(record, 'actor');
   const detailPayload = event.error ?? record ?? {};
@@ -933,7 +1076,9 @@ function AuditListItem({
   return (
     <article className={`audit-item ${event.error ? 'error' : ''}`}>
       <div className="audit-row">
-        <div className="audit-action-mark" aria-hidden="true">{action.slice(0, 1).toUpperCase()}</div>
+        <div className="audit-action-mark" aria-hidden="true">
+          {action.slice(0, 1).toUpperCase()}
+        </div>
         <div className="audit-summary">
           <div className="audit-title-row">
             <Text weight="semibold">{title}</Text>
@@ -943,7 +1088,9 @@ function AuditListItem({
             <span>{timestamp}</span>
             {target ? <span>{target}</span> : null}
             {actor ? <span>Actor: {actor}</span> : null}
-            <span>{event.source}:{event.line}</span>
+            <span>
+              {event.source}:{event.line}
+            </span>
           </div>
         </div>
         <Button appearance="subtle" onClick={onToggle}>
@@ -953,10 +1100,16 @@ function AuditListItem({
       {expanded ? (
         <div className="audit-details">
           <div className="audit-detail-grid">
-            <span>Source</span><strong>{event.source}:{event.line}</strong>
-            <span>Action</span><strong>{action}</strong>
-            <span>Target</span><strong>{target || 'n/a'}</strong>
-            <span>Timestamp</span><strong>{timestamp}</strong>
+            <span>Source</span>
+            <strong>
+              {event.source}:{event.line}
+            </strong>
+            <span>Action</span>
+            <strong>{action}</strong>
+            <span>Target</span>
+            <strong>{target || 'n/a'}</strong>
+            <span>Timestamp</span>
+            <strong>{timestamp}</strong>
           </div>
           <pre className="audit-record">{JSON.stringify(detailPayload, null, 2)}</pre>
         </div>

@@ -17,21 +17,16 @@ describe('capability map layout', () => {
   it('returns all roots or exactly the selected subtree', () => {
     const model = capabilityModel();
 
-    expect(getCapabilityMapRoots(model).map((node) => node.id)).toEqual([
-      'sales',
-      'operations',
-    ]);
+    expect(getCapabilityMapRoots(model).map((node) => node.id)).toEqual(['sales', 'operations']);
 
     const selected = getCapabilityMapRoots(model, 'sales');
     expect(selected.map((node) => node.id)).toEqual(['sales']);
-    expect(selected[0].children.map((node) => node.id)).toEqual([
-      'direct-sales',
-      'partner-sales',
-    ]);
+    expect(selected[0].children.map((node) => node.id)).toEqual(['direct-sales', 'partner-sales']);
 
     expect(getCapabilityMapRoots(model, 'missing')).toEqual([]);
-    expect(capabilityMapRootOptions(model).find((option) => option.id === 'lead-capture')?.path)
-      .toBe('Sales / Direct Sales / Lead Capture');
+    expect(
+      capabilityMapRootOptions(model).find((option) => option.id === 'lead-capture')?.path,
+    ).toBe('Sales / Direct Sales / Lead Capture');
   });
 
   it('hides descendants below max depth and marks boundary nodes as leaves', () => {
