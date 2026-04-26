@@ -10,6 +10,9 @@ from ecm_studio.application.results import envelope
 from ecm_studio.application.services import AppServices
 from ecm_studio.desktop.theme import apply_windows_chrome_theme
 from ecm_studio.domain.errors import ValidationFailed
+from ecm_studio.infrastructure.jsonl import atomic_write_text
+
+MAP_EXPORT_EXTENSIONS = {"svg": ".svg", "html": ".html"}
 
 
 class BridgeApi:
@@ -119,6 +122,20 @@ class BridgeApi:
         if target is None:
             return None
         return self._services.models.export(format_name, target)
+
+    @envelope
+    def map_export(
+        self,
+        format_name: str,
+        content: str,
+        suggested_filename: str = "",
+    ) -> dict[str, Any] | None:
+        format_value = _map_export_format(format_name)
+        target = self._pick_map_export_file(format_value, suggested_filename)
+        if target is None:
+            return None
+        path = write_map_export(format_value, Path(target), content)
+        return {"format": format_value, "path": str(path)}
 
     @envelope
     def search_query(self, q: str, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -255,6 +272,19 @@ class BridgeApi:
         )
         return _first_selection(selection)
 
+    def _pick_map_export_file(self, format_name: str, suggested_filename: str) -> str | None:
+        if self._window is None:
+            return None
+        filename = map_export_filename(format_name, suggested_filename)
+        file_type = "SVG (*.svg)" if format_name == "svg" else "HTML (*.html)"
+        selection = self._window.create_file_dialog(
+            webview.FileDialog.SAVE,
+            allow_multiple=False,
+            save_filename=filename,
+            file_types=(file_type, "All files (*.*)"),
+        )
+        return _first_selection(selection)
+
     def _apply_chrome(self, settings: dict[str, Any]) -> None:
         if self._window is None:
             return
@@ -269,3 +299,37 @@ def _first_selection(selection: Any) -> str | None:
     if isinstance(selection, str):
         return selection
     return str(selection[0]) if selection else None
+
+
+def write_map_export(format_name: str, target_path: Path, content: str) -> Path:
+    format_value = _map_export_format(format_name)
+    if not isinstance(content, str):
+        raise ValidationFailed("Map export content must be text.")
+    path = map_export_target_path(format_value, target_path)
+    atomic_write_text(path, content)
+    return path
+
+
+def map_export_filename(format_name: str, suggested_filename: str = "") -> str:
+    format_value = _map_export_format(format_name)
+    extension = MAP_EXPORT_EXTENSIONS[format_value]
+    raw_name = Path(str(suggested_filename or f"capability-map{extension}")).name
+    if not raw_name or raw_name in {".", ".."}:
+        raw_name = f"capability-map{extension}"
+    return map_export_target_path(format_value, Path(raw_name)).name
+
+
+def map_export_target_path(format_name: str, target_path: Path) -> Path:
+    format_value = _map_export_format(format_name)
+    extension = MAP_EXPORT_EXTENSIONS[format_value]
+    if target_path.suffix.lower() == extension:
+        return target_path
+    if target_path.suffix:
+        return target_path.with_suffix(extension)
+    return target_path.with_name(f"{target_path.name}{extension}")
+
+
+def _map_export_format(format_name: str) -> str:
+    if format_name in MAP_EXPORT_EXTENSIONS:
+        return format_name
+    raise ValidationFailed("Map export format must be svg or html.")

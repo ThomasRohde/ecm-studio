@@ -50,8 +50,20 @@ export function isCapabilityDescendant(
 
 export function getValidParentCandidates(nodes: Capability[], draft: Capability | null): Capability[] {
   if (!draft) return [];
-  return flattenCapabilities(nodes).filter((capability) => (
-    capability.id !== draft.id && !isCapabilityDescendant(nodes, capability.id, draft.id)
+  const flat = flattenCapabilities(nodes);
+  const descendants = new Set<string>();
+  const treeDraft = flat.find((capability) => capability.id === draft.id) ?? draft;
+
+  function collectDescendants(node: Capability) {
+    for (const child of node.children ?? []) {
+      descendants.add(child.id);
+      collectDescendants(child);
+    }
+  }
+
+  collectDescendants(treeDraft);
+  return flat.filter((capability) => (
+    capability.id !== draft.id && !descendants.has(capability.id)
   ));
 }
 

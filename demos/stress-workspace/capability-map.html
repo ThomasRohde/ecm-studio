@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Capability Map - ECM Studio Stress Workspace</title>
+<style>
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color: #1f272c;
+  background: #f6f4ef;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; overflow: hidden; }
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 72px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(33, 49, 58, 0.16);
+  background: #fffdf8;
+}
+h1 { margin: 0 0 4px; font-size: 18px; line-height: 1.2; }
+p { margin: 0; color: #5f6f76; font-size: 12px; }
+.tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.search-label { color: #5f6f76; font-size: 12px; font-weight: 600; }
+input {
+  width: min(320px, 40vw);
+  min-width: 180px;
+  border: 1px solid rgba(33, 49, 58, 0.24);
+  border-radius: 4px;
+  padding: 7px 9px;
+  font: inherit;
+}
+button {
+  border: 1px solid rgba(33, 49, 58, 0.22);
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1f272c;
+  padding: 7px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+button:hover { border-color: #25636d; background: rgba(37, 99, 109, 0.10); }
+.viewport {
+  position: fixed;
+  inset: 72px 0 24px;
+  overflow: hidden;
+  background: #fffdf8;
+  cursor: grab;
+}
+.viewport.dragging { cursor: grabbing; }
+.surface {
+  position: absolute;
+  inset: 0 auto auto 0;
+  transform-origin: 0 0;
+}
+svg { display: block; }
+.capability-node { transition: stroke 120ms ease, stroke-width 120ms ease, filter 120ms ease; }
+.capability-node.search-match {
+  stroke: #b85c00;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 4px rgba(184, 92, 0, 0.45));
+}
+.capability-node.selected,
+.capability-node.selected.search-match {
+  stroke: #25636d;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 4px rgba(37, 99, 109, 0.45));
+}
+.status {
+  position: fixed;
+  inset: auto 0 0;
+  height: 24px;
+  padding: 4px 12px;
+  border-top: 1px solid rgba(33, 49, 58, 0.16);
+  background: #fffdf8;
+  color: #5f6f76;
+  font-size: 12px;
+}
+@media (max-width: 760px) {
+  body { overflow: auto; }
+  .topbar { align-items: stretch; flex-direction: column; }
+  .tools { justify-content: flex-start; }
+  input { width: 100%; }
+  .viewport { inset-block-start: 132px; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+<div>
+<h1>Capability Map</h1>
+<p>ECM Studio Stress Workspace · Customer Management / Customer Strategy Management / Customer Strategy Management - Demand Intake · Depth All · 4 capabilities · 2026-04-26T07:23:25.810Z</p>
+</div>
+<div class="tools">
+<label class="search-label" for="capability-search">Search</label>
+<input id="capability-search" type="search" autocomplete="off" placeholder="Capability name or description" />
+<button id="zoom-out" type="button">-</button>
+<button id="zoom-in" type="button">+</button>
+<button id="reset-view" type="button">Reset</button>
+</div>
+</header>
+<main id="viewport" class="viewport">
+<div id="surface" class="surface">
+<svg xmlns="http://www.w3.org/2000/svg" width="264" height="281" viewBox="0 0 264 281" role="img">
+<title>Capability Map</title>
+<desc>ECM Studio Stress Workspace | Root: Customer Management / Customer Strategy Management / Customer Strategy Management - Demand Intake | Max depth: All | 4 capabilities | Generated: 2026-04-26T07:23:25.810Z</desc>
+<rect fill="#fffdf8" height="281" width="264" x="0" y="0" />
+<g data-capability-map-entry="d3cc2b05-12ed-561f-81f0-4244aa10bcd0">
+<rect class="capability-node capability-node-parent" data-capability-map-node="d3cc2b05-12ed-561f-81f0-4244aa10bcd0" data-node-name="Customer Strategy Management - Demand Intake" data-node-description="Customer Strategy Management - Demand Intake capability for the Customer domain, used for stress testing hierarchy, search, metadata editing, and SQLite rebuild performance." fill="#D6E4F0" height="241" rx="4" ry="4" stroke="#CCCCCC" stroke-width="1" width="224" x="20" y="20">
+<title>Customer Strategy Management - Demand Intake
+Customer Strategy Management - Demand Intake capability for the Customer domain, used for stress testing hierarchy, search, metadata editing, and SQLite rebuild performance.</title>
+</rect>
+<text dominant-baseline="central" pointer-events="none" style="fill:#000000;font:13px 'Segoe UI', system-ui, sans-serif;font-weight:700;user-select:none" text-anchor="middle">
+<tspan x="132" y="36.2">Customer Strategy</tspan>
+<tspan x="132" y="51.8">Management - Demand Intake</tspan>
+</text>
+<g data-capability-map-entry="6bc0d154-4f1a-5c3a-8f8f-f9219654810b">
+<rect class="capability-node capability-node-leaf" data-capability-map-node="6bc0d154-4f1a-5c3a-8f8f-f9219654810b" data-node-name="Customer Strategy Management - Demand Intake - Data Capture" data-node-description="Customer Strategy Management - Demand Intake - Data Capture capability for the Customer domain, used for stress testing hierarchy, search, metadata editing, and SQLite rebuild performance." fill="#E8E8E8" height="55" rx="4" ry="4" stroke="#CCCCCC" stroke-width="1" width="200" x="32" y="68">
+<title>Customer Strategy Management - Demand Intake - Data Capture
+Customer Strategy Management - Demand Intake - Data Capture capability for the Customer domain, used for stress testing hierarchy, search, metadata editing, and SQLite rebuild performance.</title>
+</rect>
+<text dominant-baseline="central" pointer-events="none" style="fill:#000000;font:11px 'Segoe UI', system-ui, sans-serif;font-weight:400;user-select:none" text-anchor="middle">
+<tspan x="132" y="88.9">Customer Strategy Management</tspan>
+<tspan x="132" y="102.1">- Demand Intake - Data Capture</tspan>
+</text>
+</g>
+<g data-capability-map-entry="077f1337-ddc5-5e0e-a5b0-fe31071936bc">
+<rect class="capability-node capability-node-leaf" data-capability-map-node="077f1337-ddc5-5e0e-a5b0-fe31071936bc" data-node-name="Customer Strategy Management - Demand Intake - Workflow Automation" data-node-description="Customer Strategy Management - Demand Intake - Workflow Automation capability for the Customer domain, used for stress testing hierarchy, search, metadata editing, and SQLite rebuild performance." fill="#E8E8E8" height="55" rx="4" ry="4" stroke="#CCCCCC" stroke-width="1" width="200" x="32" y="131">
+<title>Customer Strategy Management - Demand Intake - Workflow Automation
+Customer Strategy Management - Demand Intake - Workflow Automation capability for the Customer domain, used for stress testing hierarchy, search, metadata editing, and SQLite rebuild performance.</title>
+</rect>
+<text dominant-baseline="central" pointer-events="none" style="fill:#000000;font:11px 'Segoe UI', system-ui, sans-serif;font-weight:400;user-select:none" text-anchor="middle">
+<tspan x="132" y="145.3">Customer Strategy Management</tspan>
+<tspan x="132" y="158.5">- Demand Intake - Workflow</tspan>
+<tspan x="132" y="171.7">Automation</tspan>
+</text>
+</g>
+<g data-capability-map-entry="b33fd4d9-364d-5749-8105-348f66eacae2">
+<rect class="capability-node capability-node-leaf" data-capability-map-node="b33fd4d9-364d-5749-8105-348f66eacae2" data-node-name="Customer Strategy Management - Demand Intake - Stakeholder Communication" data-node-description="Customer Strategy Management - Demand Intake - Stakeholder Communication capability for the Customer domain, used for stress testing hierarchy, search, metadata editing, and SQLite rebuild performance." fill="#E8E8E8" height="55" rx="4" ry="4" stroke="#CCCCCC" stroke-width="1" width="200" x="32" y="194">
+<title>Customer Strategy Management - Demand Intake - Stakeholder Communication
+Customer Strategy Management - Demand Intake - Stakeholder Communication capability for the Customer domain, used for stress testing hierarchy, search, metadata editing, and SQLite rebuild performance.</title>
+</rect>
+<text dominant-baseline="central" pointer-events="none" style="fill:#000000;font:11px 'Segoe UI', system-ui, sans-serif;font-weight:400;user-select:none" text-anchor="middle">
+<tspan x="132" y="208.3">Customer Strategy Management</tspan>
+<tspan x="132" y="221.5">- Demand Intake - Stakeholder</tspan>
+<tspan x="132" y="234.7">Communication</tspan>
+</text>
+</g>
+</g>
+</svg>
+</div>
+</main>
+<footer id="search-status" class="status" aria-live="polite"></footer>
+<script>
+const viewport = document.getElementById('viewport');
+const surface = document.getElementById('surface');
+const search = document.getElementById('capability-search');
+const status = document.getElementById('search-status');
+const zoomIn = document.getElementById('zoom-in');
+const zoomOut = document.getElementById('zoom-out');
+const reset = document.getElementById('reset-view');
+const nodes = Array.from(document.querySelectorAll('[data-capability-map-node]'));
+let scale = 1;
+let panX = 20;
+let panY = 20;
+let dragging = false;
+let dragStart = { x: 0, y: 0, panX: 0, panY: 0 };
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function updateTransform() {
+  surface.style.transform = 'translate(' + panX + 'px, ' + panY + 'px) scale(' + scale + ')';
+}
+
+function setScale(next) {
+  scale = clamp(next, 0.15, 3);
+  updateTransform();
+}
+
+function runSearch() {
+  const query = search.value.trim().toLowerCase();
+  let matches = 0;
+  for (const node of nodes) {
+    const haystack = ((node.dataset.nodeName || '') + ' ' + (node.dataset.nodeDescription || '')).toLowerCase();
+    const matched = query.length > 0 && haystack.includes(query);
+    node.classList.toggle('search-match', matched);
+    if (matched) matches += 1;
+  }
+  status.textContent = query ? matches + ' matches' : nodes.length + ' capabilities';
+}
+
+viewport.addEventListener('wheel', (event) => {
+  event.preventDefault();
+  setScale(scale * (event.deltaY > 0 ? 0.9 : 1.1));
+}, { passive: false });
+
+viewport.addEventListener('mousedown', (event) => {
+  if (event.button !== 0) return;
+  dragging = true;
+  viewport.classList.add('dragging');
+  dragStart = { x: event.clientX, y: event.clientY, panX, panY };
+});
+
+window.addEventListener('mousemove', (event) => {
+  if (!dragging) return;
+  panX = dragStart.panX + event.clientX - dragStart.x;
+  panY = dragStart.panY + event.clientY - dragStart.y;
+  updateTransform();
+});
+
+window.addEventListener('mouseup', () => {
+  dragging = false;
+  viewport.classList.remove('dragging');
+});
+
+zoomIn.addEventListener('click', () => setScale(scale * 1.2));
+zoomOut.addEventListener('click', () => setScale(scale * 0.8));
+reset.addEventListener('click', () => {
+  scale = 1;
+  panX = 20;
+  panY = 20;
+  updateTransform();
+});
+search.addEventListener('input', runSearch);
+updateTransform();
+runSearch();
+</script>
+</body>
+</html>

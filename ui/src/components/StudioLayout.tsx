@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { DockviewReact, themeAbyss, themeLight, type DockviewReadyEvent } from 'dockview';
 import 'dockview/dist/styles/dockview.css';
+import { CapabilityMapPanel } from './CapabilityMapPanel';
 import { CapabilityTreePanel, InspectorPanel } from './CapabilityPanels';
 import { GroupHeaderActions } from './GroupHeaderActions';
 import { AuditPanel, DiagnosticsPanel, GitPanel, ImportExportPanel, WorkspacePanel } from './WorkspacePanels';
@@ -10,6 +11,7 @@ import { useSettingsStore } from '../store/settings-store';
 const components = {
   workspace: WorkspacePanel,
   tree: CapabilityTreePanel,
+  map: CapabilityMapPanel,
   inspector: InspectorPanel,
   git: GitPanel,
   import_export: ImportExportPanel,

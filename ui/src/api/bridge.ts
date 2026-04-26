@@ -13,6 +13,8 @@ import type {
   GitStatus,
   ImportMode,
   ImportPreview,
+  MapExportFormat,
+  MapExportResult,
   ModelFormat,
   PublishResult,
   ReleaseResult,
@@ -335,6 +337,11 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
   if (method === 'models_export') {
     return { format: args[0] as ModelFormat, path: 'C:\\Mock\\exports\\capabilities.jsonl', count: mockState.capabilities.length } as T;
   }
+  if (method === 'map_export') {
+    const format = args[0] as MapExportFormat;
+    const suggested = String(args[2] || `capability-map.${format}`);
+    return { format, path: `C:\\Mock\\exports\\${suggested}` } as T;
+  }
   if (method === 'models_import_preview' || method === 'models_import_apply') {
     const preview: ImportPreview = {
       source_path: String(args[0] || 'C:\\Mock\\imports\\capabilities.jsonl'),
@@ -570,6 +577,11 @@ export const api = {
     importPreview: (sourcePath: string | null, mode: ImportMode) => call<ImportPreview | null>('models_import_preview', sourcePath, mode),
     importApply: (sourcePath: string, mode: ImportMode) => call<ImportPreview>('models_import_apply', sourcePath, mode),
     export: (format: ModelFormat) => call<ExportResult | null>('models_export', format, null),
+  },
+  map: {
+    export: (format: MapExportFormat, content: string, suggestedFilename: string) => (
+      call<MapExportResult | null>('map_export', format, content, suggestedFilename)
+    ),
   },
   search: {
     query: (q: string) => call<SearchResult[]>('search_query', q, null),

@@ -5,6 +5,7 @@ export type PanelGroup = 'Workspace' | 'Model' | 'Operations';
 export type PanelId =
   | 'workspace'
   | 'tree'
+  | 'map'
   | 'inspector'
   | 'git'
   | 'import_export'
@@ -33,6 +34,13 @@ export const PANEL_DEFS: PanelDef[] = [
     title: 'Capability Tree',
     group: 'Model',
     description: 'Search, browse, and create capabilities.',
+  },
+  {
+    id: 'map',
+    component: 'map',
+    title: 'Capability Map',
+    group: 'Model',
+    description: 'Render the capability model with root and depth controls.',
   },
   {
     id: 'inspector',
@@ -107,6 +115,12 @@ function addDefaultPanels(api: DockviewApi): void {
     component: 'tree',
     title: 'Capability Tree',
     position: { referencePanel: workspace, direction: 'right' },
+  });
+  api.addPanel({
+    id: 'map',
+    component: 'map',
+    title: 'Capability Map',
+    position: { referencePanel: tree, direction: 'within' },
   });
   api.addPanel({
     id: 'inspector',

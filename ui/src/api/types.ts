@@ -192,6 +192,7 @@ export interface Diagnostic {
 }
 
 export type ModelFormat = 'jsonl' | 'csv' | 'json_bundle';
+export type MapExportFormat = 'svg' | 'html';
 export type ImportMode = 'validate_only' | 'append' | 'replace' | 'merge_by_id';
 
 export interface ImportPreview {
@@ -213,6 +214,11 @@ export interface ExportResult {
   format: ModelFormat;
   path: string;
   count: number;
+}
+
+export interface MapExportResult {
+  format: MapExportFormat;
+  path: string;
 }
 
 export interface AuditEvent {

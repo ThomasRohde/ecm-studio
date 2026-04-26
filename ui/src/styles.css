@@ -436,6 +436,86 @@ body {
   overflow: auto;
 }
 
+.capability-map-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.capability-map-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--panel-border);
+  background: var(--panel-bg);
+}
+
+.capability-map-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted-fg);
+  font-size: 12px;
+}
+
+.capability-map-field.root-filter {
+  flex: 1 1 220px;
+}
+
+.capability-map-field.root-select {
+  flex: 2 1 280px;
+}
+
+.capability-map-field.depth-select {
+  flex: 0 0 120px;
+}
+
+.capability-map-field .select {
+  width: 100%;
+}
+
+.capability-map-meta {
+  flex: 0 0 auto;
+  color: var(--muted-fg);
+  white-space: nowrap;
+}
+
+.capability-map-canvas {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--panel-bg);
+  cursor: grab;
+}
+
+.capability-map-canvas.dragging {
+  cursor: grabbing;
+}
+
+.capability-map-surface {
+  position: absolute;
+  inset: 0 auto auto 0;
+  transform-origin: 0 0;
+}
+
+.capability-map-surface svg {
+  display: block;
+}
+
+.capability-map-empty {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  padding: 24px;
+  color: var(--muted-fg);
+  text-align: center;
+}
+
 .tree-row {
   display: flex;
   align-items: center;

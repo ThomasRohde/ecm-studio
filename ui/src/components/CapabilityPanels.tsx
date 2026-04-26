@@ -54,8 +54,6 @@ function capabilityPatchChanged(draft: Capability, original: Capability | null):
 export function CapabilityTreePanel() {
   const workspace = useAppStore((s) => s.workspace);
   const tree = useAppStore((s) => s.tree);
-  const selected = useAppStore((s) => s.selected);
-  const selectedId = useAppStore((s) => s.selectedId);
   const setTree = useAppStore((s) => s.setTree);
   const setSelected = useAppStore((s) => s.setSelected);
   const setError = useAppStore((s) => s.setError);
@@ -73,7 +71,7 @@ export function CapabilityTreePanel() {
     try {
       const next = await api.capabilities.listTree();
       setTree(next);
-      const desiredSelectedId = options.selectId ?? selected?.id ?? null;
+      const desiredSelectedId = options.selectId ?? useAppStore.getState().selectedId ?? null;
       if (desiredSelectedId) {
         const match = flattenCapabilities(next).find((cap) => cap.id === desiredSelectedId) ?? null;
         setSelected(match);
@@ -207,7 +205,7 @@ export function CapabilityTreePanel() {
       </div>
       <div className="toolbar">
         <Input value={newName} onChange={(_, data) => setNewName(data.value)} placeholder="New capability name" />
-        <Button appearance="primary" onClick={() => void create(selected?.id ?? null)}>Add</Button>
+        <AddSelectedCapabilityButton onCreate={create} />
         <Button onClick={() => void create(null)}>Add Root</Button>
       </div>
       {!workspace ? <Text>Open or initialize a workspace first.</Text> : null}
@@ -222,7 +220,6 @@ export function CapabilityTreePanel() {
       ) : (
         <CapabilityTreeView
           nodes={tree}
-          selectedId={selectedId}
           expandedItems={expandedItems}
           setExpandedItems={setExpandedItems}
           onSelect={setSelected}
@@ -234,16 +231,27 @@ export function CapabilityTreePanel() {
   );
 }
 
+function AddSelectedCapabilityButton({
+  onCreate,
+}: {
+  onCreate: (parentId: string | null) => Promise<void>;
+}) {
+  const selectedId = useAppStore((s) => s.selectedId);
+  return (
+    <Button appearance="primary" onClick={() => void onCreate(selectedId)}>
+      Add
+    </Button>
+  );
+}
+
 function CapabilityTreeView({
   nodes,
-  selectedId,
   expandedItems,
   setExpandedItems,
   onSelect,
   onMove,
 }: {
   nodes: Capability[];
-  selectedId: string | null;
   expandedItems: string[];
   setExpandedItems: Dispatch<SetStateAction<string[]>>;
   onSelect: (capability: Capability | null) => void;
@@ -297,7 +305,7 @@ function CapabilityTreeView({
   return (
     <div {...capabilityTree.getContainerProps('Capability tree')} className="tree capability-tree-scroll">
       {capabilityTree.getItems().map((item) => (
-        <CapabilityTreeRow key={item.getKey()} item={item} selectedId={selectedId} />
+        <CapabilityTreeRow key={item.getKey()} item={item} />
       ))}
       <div style={capabilityTree.getDragLineStyle()} className="tree-drag-line" />
     </div>
@@ -306,11 +314,10 @@ function CapabilityTreeView({
 
 function CapabilityTreeRow({
   item,
-  selectedId,
 }: {
   item: ItemInstance<CapabilityTreeItemData>;
-  selectedId: string | null;
 }) {
+  const isSelected = useAppStore((s) => s.selectedId === item.getId());
   const data = item.getItemData();
   const hasChildren = data.childrenIds.length > 0;
   const expanded = item.isExpanded();
@@ -319,7 +326,7 @@ function CapabilityTreeRow({
   const classes = [
     'tree-row',
     'headless-tree-row',
-    selectedId === item.getId() ? 'selected' : '',
+    isSelected ? 'selected' : '',
     item.isFocused() ? 'focused' : '',
     item.isDraggingOver() ? 'drag-over' : '',
     item.isUnorderedDragTarget() ? 'drop-inside' : '',
@@ -368,19 +375,24 @@ export function InspectorPanel() {
   const setTree = useAppStore((s) => s.setTree);
   const setError = useAppStore((s) => s.setError);
   const [draft, setDraft] = useState<Capability | null>(selected);
+  const visibleDraft = selected && draft?.id !== selected.id ? selected : draft;
 
   useEffect(() => setDraft(selected ? { ...selected } : null), [selected]);
 
   async function save() {
-    if (!draft) return;
+    if (!visibleDraft) return;
     try {
-      const metadataChanged = capabilityPatchChanged(draft, selected);
-      const parentChanged = draft.parent_id !== (selected?.parent_id ?? null);
+      const metadataChanged = capabilityPatchChanged(visibleDraft, selected);
+      const parentChanged = visibleDraft.parent_id !== (selected?.parent_id ?? null);
       if (!metadataChanged && !parentChanged) {
         setError(null);
         return;
       }
-      const final = await api.capabilities.save(draft.id, capabilityPatch(draft), draft.parent_id);
+      const final = await api.capabilities.save(
+        visibleDraft.id,
+        capabilityPatch(visibleDraft),
+        visibleDraft.parent_id,
+      );
       const nextTree = await api.capabilities.listTree();
       setTree(nextTree);
       setSelected(flattenCapabilities(nextTree).find((capability) => capability.id === final.id) ?? final);
@@ -390,7 +402,7 @@ export function InspectorPanel() {
         title: parentChanged ? 'Capability moved' : 'Capability saved',
         body: final.name,
         source: 'model',
-        dedupeKey: parentChanged ? `capability.move.${draft.id}` : `capability.save.${draft.id}`,
+        dedupeKey: parentChanged ? `capability.move.${visibleDraft.id}` : `capability.save.${visibleDraft.id}`,
         action: { label: 'Open inspector', panelId: 'inspector' },
       });
     } catch (error) {
@@ -399,40 +411,43 @@ export function InspectorPanel() {
         title: 'Could not save capability',
         body: errorMessage(error),
         source: 'model',
-        dedupeKey: `capability.save.${draft.id}`,
+        dedupeKey: `capability.save.${visibleDraft.id}`,
         action: { label: 'Open inspector', panelId: 'inspector' },
       });
     }
   }
 
-  const candidates = getValidParentCandidates(tree, draft);
+  const candidates = useMemo(
+    () => getValidParentCandidates(tree, visibleDraft),
+    [tree, visibleDraft?.id],
+  );
 
-  if (!draft) return <section className="panel"><Text>Select a capability.</Text></section>;
+  if (!visibleDraft) return <section className="panel"><Text>Select a capability.</Text></section>;
 
   return (
     <section className="panel stack inspector">
       <Text weight="semibold">Capability Inspector</Text>
-      <label>Name<Input value={draft.name} onChange={(_, d) => setDraft({ ...draft, name: d.value })} /></label>
-      <label>Domain<Input value={draft.domain} onChange={(_, d) => setDraft({ ...draft, domain: d.value })} /></label>
+      <label>Name<Input value={visibleDraft.name} onChange={(_, d) => setDraft({ ...visibleDraft, name: d.value })} /></label>
+      <label>Domain<Input value={visibleDraft.domain} onChange={(_, d) => setDraft({ ...visibleDraft, domain: d.value })} /></label>
       <label>Status
-        <Dropdown selectedOptions={[draft.lifecycle_status]} value={draft.lifecycle_status} onOptionSelect={(_, d) => setDraft({ ...draft, lifecycle_status: d.optionValue as Capability['lifecycle_status'] })}>
+        <Dropdown selectedOptions={[visibleDraft.lifecycle_status]} value={visibleDraft.lifecycle_status} onOptionSelect={(_, d) => setDraft({ ...visibleDraft, lifecycle_status: d.optionValue as Capability['lifecycle_status'] })}>
           <Option value="Draft">Draft</Option>
           <Option value="Active">Active</Option>
           <Option value="Deprecated">Deprecated</Option>
           <Option value="Retired">Retired</Option>
         </Dropdown>
       </label>
-      <label>Description<Textarea value={draft.description} onChange={(_, d) => setDraft({ ...draft, description: d.value })} /></label>
-      <label>Aliases<Input value={draft.aliases.join('; ')} onChange={(_, d) => setDraft({ ...draft, aliases: d.value.split(';').map((v) => v.trim()).filter(Boolean) })} /></label>
-      <label>Tags<Input value={draft.tags.join('; ')} onChange={(_, d) => setDraft({ ...draft, tags: d.value.split(';').map((v) => v.trim()).filter(Boolean) })} /></label>
-      <label>Steward<Input value={draft.steward_id} onChange={(_, d) => setDraft({ ...draft, steward_id: d.value })} /></label>
-      <label>Steward Department<Input value={draft.steward_department} onChange={(_, d) => setDraft({ ...draft, steward_department: d.value })} /></label>
+      <label>Description<Textarea value={visibleDraft.description} onChange={(_, d) => setDraft({ ...visibleDraft, description: d.value })} /></label>
+      <label>Aliases<Input value={visibleDraft.aliases.join('; ')} onChange={(_, d) => setDraft({ ...visibleDraft, aliases: d.value.split(';').map((v) => v.trim()).filter(Boolean) })} /></label>
+      <label>Tags<Input value={visibleDraft.tags.join('; ')} onChange={(_, d) => setDraft({ ...visibleDraft, tags: d.value.split(';').map((v) => v.trim()).filter(Boolean) })} /></label>
+      <label>Steward<Input value={visibleDraft.steward_id} onChange={(_, d) => setDraft({ ...visibleDraft, steward_id: d.value })} /></label>
+      <label>Steward Department<Input value={visibleDraft.steward_department} onChange={(_, d) => setDraft({ ...visibleDraft, steward_department: d.value })} /></label>
       <label>Move under
         <Dropdown
-          selectedOptions={[parentOptionValue(draft.parent_id)]}
-          value={parentOptionLabel(draft.parent_id, candidates)}
+          selectedOptions={[parentOptionValue(visibleDraft.parent_id)]}
+          value={parentOptionLabel(visibleDraft.parent_id, candidates)}
           onOptionSelect={(_, d) => setDraft({
-            ...draft,
+            ...visibleDraft,
             parent_id: parentIdFromOptionValue(d.optionValue),
           })}
         >
