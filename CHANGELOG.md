@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.1] - 2026-04-26
+
+- Clarify installation instructions for standard `pip`, Windows Python launcher fallback, and uv users.
+
 ## [0.3.0] - 2026-04-26
 
 - Add repository-scoped capability map settings for target aspect ratio and colors.

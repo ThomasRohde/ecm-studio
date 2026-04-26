@@ -26,10 +26,29 @@ without putting the authoritative model in a database.
 
 ## Install
 
-ECM Studio requires Python 3.13 or newer. On Windows, install it from PyPI:
+ECM Studio requires Python 3.13 or newer. Install it from PyPI:
+
+```powershell
+pip install ecm-studio
+```
+
+On Windows, if `pip` points at a different Python installation, use the Python
+launcher instead:
 
 ```powershell
 py -m pip install ecm-studio
+```
+
+With [uv](https://docs.astral.sh/uv/), install ECM Studio as a command-line tool:
+
+```powershell
+uv tool install ecm-studio
+```
+
+Or install it into the current uv-managed environment:
+
+```powershell
+uv pip install ecm-studio
 ```
 
 Start the desktop app:
