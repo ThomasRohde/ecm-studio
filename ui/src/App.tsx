@@ -68,9 +68,10 @@ export function App() {
             <span />
           </button>
           <div className="title-copy">
-            <strong>ECM Studio</strong>
-            <span>Desktop Git/JSONL capability management</span>
+            <strong>ECM</strong>
+            <span>Capability Studio · Git · JSONL</span>
           </div>
+          <span aria-hidden="true" className="title-divider" />
           <GitBadges status={gitStatus} compact />
           <NotificationCenterButton />
           <img alt="" aria-hidden="true" className="app-logo" src="./brand/ecm-studio-logo.svg" />
