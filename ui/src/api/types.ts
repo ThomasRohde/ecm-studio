@@ -26,6 +26,11 @@ export interface GitStatus {
   merge_in_progress: boolean;
 }
 
+export interface BranchIntegrationCandidate {
+  name: string;
+  integrable: boolean;
+}
+
 export interface ReleaseBlocker {
   code: string;
   message: string;

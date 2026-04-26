@@ -431,6 +431,9 @@ class GitAppService:
     def list_branches(self) -> list[str]:
         return GitService(self.context.require_workspace().root).list_branches()
 
+    def integration_candidates(self) -> list[dict[str, Any]]:
+        return GitService(self.context.require_workspace().root).integration_candidates()
+
     def create_branch(self, name: str) -> dict[str, Any]:
         return GitService(self.context.require_workspace().root).create_branch(name)
 

@@ -4,6 +4,8 @@ import { StudioLayout } from './components/StudioLayout';
 import { StatusBar } from './components/StatusBar';
 import { AppMenu } from './components/AppMenu';
 import { GitBadges } from './components/GitBadges';
+import { NotificationCenter, NotificationCenterButton } from './notifications/NotificationCenter';
+import { ToastHost } from './notifications/ToastHost';
 import { useAppStore } from './store/app-store';
 import { applyTheme, useSettingsStore } from './store/settings-store';
 
@@ -41,11 +43,14 @@ export function App() {
             <span>Desktop Git/JSONL capability management</span>
           </div>
           <GitBadges status={gitStatus} compact />
+          <NotificationCenterButton />
           <img alt="" aria-hidden="true" className="app-logo" src="./brand/ecm-studio-logo.svg" />
         </header>
         <section className="studio-area"><StudioLayout /></section>
         <StatusBar />
         <AppMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
+        <NotificationCenter />
+        <ToastHost />
       </main>
     </FluentProvider>
   );

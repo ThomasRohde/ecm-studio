@@ -12,6 +12,7 @@ import { Button, Input, Text, Textarea, Dropdown, Option } from '@fluentui/react
 import { ChevronDownRegular, ChevronRightRegular, DragRegular } from '@fluentui/react-icons';
 import type { Capability, CapabilityPatch } from '../api/types';
 import { api } from '../api/bridge';
+import { notify, errorMessage } from '../notifications/notify';
 import { useAppStore } from '../store/app-store';
 import {
   CAPABILITY_TREE_ROOT_ID,
@@ -90,7 +91,14 @@ export function CapabilityTreePanel() {
         ));
       }
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not refresh capabilities',
+        body: errorMessage(error),
+        source: 'model',
+        dedupeKey: `capability.refresh.${workspace?.path ?? 'current'}`,
+        action: { label: 'Open capability tree', panelId: 'tree' },
+      });
     }
   }
 
@@ -109,8 +117,22 @@ export function CapabilityTreePanel() {
         selectId: created.id,
         extraExpandedItems: [parentId ?? CAPABILITY_TREE_ROOT_ID],
       });
+      notify.success({
+        intent: 'capability.created',
+        title: 'Capability created',
+        body: created.name,
+        source: 'model',
+        dedupeKey: `capability.create.${created.id}`,
+        action: { label: 'Open inspector', panelId: 'inspector' },
+      });
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not create capability',
+        body: errorMessage(error),
+        source: 'model',
+        action: { label: 'Open capability tree', panelId: 'tree' },
+      });
     }
   }
 
@@ -122,8 +144,23 @@ export function CapabilityTreePanel() {
         extraExpandedItems: [request.parentId ?? CAPABILITY_TREE_ROOT_ID],
       });
       setError(null);
+      notify.success({
+        intent: 'capability.moved',
+        title: 'Capability moved',
+        body: updated.name,
+        source: 'model',
+        dedupeKey: `capability.move.${request.id}`,
+        action: { label: 'Open capability tree', panelId: 'tree' },
+      });
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not move capability',
+        body: errorMessage(error),
+        source: 'model',
+        dedupeKey: `capability.move.${request.id}`,
+        action: { label: 'Open capability tree', panelId: 'tree' },
+      });
     }
   }
 
@@ -138,7 +175,14 @@ export function CapabilityTreePanel() {
       const ids = new Set(found.map((item) => item.id));
       setResults(flattenCapabilities(tree).filter((item) => ids.has(item.id)));
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not search capabilities',
+        body: errorMessage(error),
+        source: 'model',
+        dedupeKey: `capability.search.${value.trim()}`,
+        action: { label: 'Open capability tree', panelId: 'tree' },
+      });
     }
   }
 
@@ -330,8 +374,23 @@ export function InspectorPanel() {
       setTree(nextTree);
       setSelected(flattenCapabilities(nextTree).find((capability) => capability.id === final.id) ?? final);
       setError(null);
+      notify.success({
+        intent: parentChanged ? 'capability.moved' : 'capability.updated',
+        title: parentChanged ? 'Capability moved' : 'Capability saved',
+        body: final.name,
+        source: 'model',
+        dedupeKey: parentChanged ? `capability.move.${draft.id}` : `capability.save.${draft.id}`,
+        action: { label: 'Open inspector', panelId: 'inspector' },
+      });
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not save capability',
+        body: errorMessage(error),
+        source: 'model',
+        dedupeKey: `capability.save.${draft.id}`,
+        action: { label: 'Open inspector', panelId: 'inspector' },
+      });
     }
   }
 

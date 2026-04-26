@@ -1,6 +1,7 @@
 import { Button, Text } from '@fluentui/react-components';
 import { api } from '../api/bridge';
 import type { ThemeMode } from '../api/types';
+import { notify, errorMessage } from '../notifications/notify';
 import { useAppStore } from '../store/app-store';
 import { PANEL_DEFS, type PanelGroup, useLayoutStore } from '../store/layout-store';
 import { useSettingsStore } from '../store/settings-store';
@@ -18,7 +19,6 @@ export function AppMenu({ open, onClose }: AppMenuProps) {
   const openPanelIds = useLayoutStore((state) => state.openPanelIds);
   const setWorkspace = useAppStore((state) => state.setWorkspace);
   const setDiagnostics = useAppStore((state) => state.setDiagnostics);
-  const setError = useAppStore((state) => state.setError);
   const workspace = useAppStore((state) => state.workspace);
   const settings = useSettingsStore((state) => state.settings);
   const setThemeMode = useSettingsStore((state) => state.setThemeMode);
@@ -29,9 +29,24 @@ export function AppMenu({ open, onClose }: AppMenuProps) {
     try {
       await api.workspace.rebuildIndex();
       setWorkspace(await api.workspace.status());
+      notify.success({
+        intent: 'workspace.index.rebuilt',
+        title: 'Index rebuilt',
+        body: 'Workspace search and diagnostics are current.',
+        source: 'workspace',
+        dedupeKey: `workspace.index.${workspace?.path ?? 'current'}`,
+        action: { label: 'Open workspace', panelId: 'workspace' },
+      });
       onClose();
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not rebuild index',
+        body: errorMessage(error),
+        source: 'workspace',
+        dedupeKey: `workspace.index.${workspace?.path ?? 'current'}`,
+        action: { label: 'Open diagnostics', panelId: 'diagnostics' },
+      });
     }
   }
 
@@ -39,9 +54,24 @@ export function AppMenu({ open, onClose }: AppMenuProps) {
     try {
       setDiagnostics(await api.diagnostics.run());
       openPanel('diagnostics');
+      notify.success({
+        intent: 'diagnostics.completed',
+        title: 'Diagnostics completed',
+        body: 'Diagnostics results are available.',
+        source: 'diagnostics',
+        dedupeKey: `diagnostics.${workspace?.path ?? 'current'}`,
+        action: { label: 'Open diagnostics', panelId: 'diagnostics' },
+      });
       onClose();
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not run diagnostics',
+        body: errorMessage(error),
+        source: 'diagnostics',
+        dedupeKey: `diagnostics.${workspace?.path ?? 'current'}`,
+        action: { label: 'Open diagnostics', panelId: 'diagnostics' },
+      });
     }
   }
 
@@ -49,7 +79,12 @@ export function AppMenu({ open, onClose }: AppMenuProps) {
     try {
       await setThemeMode(themeMode);
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not change theme',
+        body: errorMessage(error),
+        source: 'workspace',
+      });
     }
   }
 

@@ -3,7 +3,8 @@ import type { MouseEvent } from 'react';
 import { Button, Input, Text } from '@fluentui/react-components';
 import { Gitgraph, MergeStyle, Mode, Orientation, TemplateName, templateExtend } from '@gitgraph/react';
 import { api } from '../api/bridge';
-import type { AuditEvent, Checkpoint, GitGraphData, GitStatus, ImportMode, ImportPreview, ModelFormat, ReleaseBlocker, ReleaseStatus } from '../api/types';
+import type { AuditEvent, BranchIntegrationCandidate, Checkpoint, GitGraphData, GitStatus, ImportMode, ImportPreview, ModelFormat, ReleaseBlocker, ReleaseStatus } from '../api/types';
+import { notify, errorMessage } from '../notifications/notify';
 import { useAppStore } from '../store/app-store';
 import { useSettingsStore } from '../store/settings-store';
 import { GitBadges } from './GitBadges';
@@ -22,7 +23,6 @@ export function WorkspacePanel() {
   const setWorkspace = useAppStore((s) => s.setWorkspace);
   const setTree = useAppStore((s) => s.setTree);
   const setDiagnostics = useAppStore((s) => s.setDiagnostics);
-  const setError = useAppStore((s) => s.setError);
   const settings = useSettingsStore((s) => s.settings);
   const loadSettings = useSettingsStore((s) => s.load);
   const [path, setPath] = useState(workspace?.path ?? '');
@@ -43,8 +43,23 @@ export function WorkspacePanel() {
       setPath(opened.path);
       await refreshData();
       await loadSettings();
+      notify.success({
+        intent: 'workspace.opened',
+        title: 'Workspace opened',
+        body: opened.name,
+        source: 'workspace',
+        dedupeKey: `workspace.open.${opened.path}`,
+        action: { label: 'Open workspace', panelId: 'workspace' },
+      });
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not open workspace',
+        body: errorMessage(error),
+        source: 'workspace',
+        dedupeKey: `workspace.open.${openPath ?? path ?? 'picker'}`,
+        action: { label: 'Open workspace', panelId: 'workspace' },
+      });
     }
   }
 
@@ -56,8 +71,23 @@ export function WorkspacePanel() {
       setPath(opened.path);
       await refreshData();
       await loadSettings();
+      notify.success({
+        intent: 'workspace.opened',
+        title: 'Workspace opened',
+        body: opened.name,
+        source: 'workspace',
+        dedupeKey: `workspace.open.${opened.path}`,
+        action: { label: 'Open workspace', panelId: 'workspace' },
+      });
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not open workspace',
+        body: errorMessage(error),
+        source: 'workspace',
+        dedupeKey: 'workspace.open.picker',
+        action: { label: 'Open workspace', panelId: 'workspace' },
+      });
     }
   }
 
@@ -69,8 +99,23 @@ export function WorkspacePanel() {
       setPath(initialized.path);
       await refreshData();
       await loadSettings();
+      notify.success({
+        intent: 'workspace.created',
+        title: 'Workspace created',
+        body: initialized.name,
+        source: 'workspace',
+        dedupeKey: `workspace.create.${initialized.path}`,
+        action: { label: 'Open workspace', panelId: 'workspace' },
+      });
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not create workspace',
+        body: errorMessage(error),
+        source: 'workspace',
+        dedupeKey: 'workspace.create.picker',
+        action: { label: 'Open workspace', panelId: 'workspace' },
+      });
     }
   }
 
@@ -80,8 +125,23 @@ export function WorkspacePanel() {
       setWorkspace(initialized);
       await refreshData();
       await loadSettings();
+      notify.success({
+        intent: 'workspace.created',
+        title: 'Workspace created',
+        body: initialized.name,
+        source: 'workspace',
+        dedupeKey: `workspace.create.${initialized.path}`,
+        action: { label: 'Open workspace', panelId: 'workspace' },
+      });
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not initialize workspace',
+        body: errorMessage(error),
+        source: 'workspace',
+        dedupeKey: `workspace.create.${path}`,
+        action: { label: 'Open workspace', panelId: 'workspace' },
+      });
     }
   }
 
@@ -89,8 +149,23 @@ export function WorkspacePanel() {
     try {
       await api.workspace.rebuildIndex();
       await refreshData();
+      notify.success({
+        intent: 'workspace.index.rebuilt',
+        title: 'Index rebuilt',
+        body: 'Workspace search and diagnostics are current.',
+        source: 'workspace',
+        dedupeKey: `workspace.index.${workspace?.path ?? 'current'}`,
+        action: { label: 'Open diagnostics', panelId: 'diagnostics' },
+      });
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not rebuild index',
+        body: errorMessage(error),
+        source: 'workspace',
+        dedupeKey: `workspace.index.${workspace?.path ?? 'current'}`,
+        action: { label: 'Open diagnostics', panelId: 'diagnostics' },
+      });
     }
   }
 
@@ -145,7 +220,6 @@ export function ImportExportPanel() {
   const setTree = useAppStore((s) => s.setTree);
   const setDiagnostics = useAppStore((s) => s.setDiagnostics);
   const setGitStatus = useAppStore((s) => s.setGitStatus);
-  const setError = useAppStore((s) => s.setError);
   const [format, setFormat] = useState<ModelFormat>('jsonl');
   const [mode, setMode] = useState<ImportMode>('append');
   const [preview, setPreview] = useState<ImportPreview | null>(null);
@@ -166,9 +240,30 @@ export function ImportExportPanel() {
   async function previewImport() {
     try {
       const result = await api.models.importPreview(null, mode);
-      if (result) setPreview(result);
+      if (result) {
+        setPreview(result);
+        const invalid = result.invalid > 0;
+        const title = invalid ? 'Import validation failed' : 'Import preview validated';
+        const body = invalid
+          ? `${result.invalid} invalid rows found.`
+          : `${result.total} rows checked.`;
+        notify[invalid ? 'warning' : 'success']({
+          intent: 'import.validated',
+          title,
+          body,
+          source: 'import',
+          dedupeKey: `import.preview.${result.source_path}`,
+          action: { label: 'Open import/export', panelId: 'import_export' },
+        });
+      }
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not preview import',
+        body: errorMessage(error),
+        source: 'import',
+        action: { label: 'Open import/export', panelId: 'import_export' },
+      });
     }
   }
 
@@ -178,17 +273,48 @@ export function ImportExportPanel() {
       const result = await api.models.importApply(preview.source_path, preview.mode);
       setPreview(result);
       await refreshAfterModelChange();
+      notify.success({
+        intent: 'import.applied',
+        title: 'Import applied',
+        body: `${result.added} added, ${result.updated} updated, ${result.skipped} skipped.`,
+        source: 'import',
+        dedupeKey: `import.apply.${result.source_path}`,
+        action: { label: 'Open import/export', panelId: 'import_export' },
+      });
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not apply import',
+        body: errorMessage(error),
+        source: 'import',
+        dedupeKey: `import.apply.${preview.source_path}`,
+        action: { label: 'Open import/export', panelId: 'import_export' },
+      });
     }
   }
 
   async function exportModel() {
     try {
       const result = await api.models.export(format);
-      if (result) setExportPath(result.path);
+      if (result) {
+        setExportPath(result.path);
+        notify.success({
+          intent: 'model.exported',
+          title: 'Model exported',
+          body: `${result.count} capabilities exported to ${result.path}.`,
+          source: 'model',
+          dedupeKey: `model.export.${result.path}`,
+          action: { label: 'Open import/export', panelId: 'import_export' },
+        });
+      }
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not export model',
+        body: errorMessage(error),
+        source: 'model',
+        action: { label: 'Open import/export', panelId: 'import_export' },
+      });
     }
   }
 
@@ -253,11 +379,11 @@ export function canApplyImportPreview(preview: ImportPreview | null): boolean {
 export function GitPanel() {
   const gitStatus = useAppStore((s) => s.gitStatus);
   const setGitStatus = useAppStore((s) => s.setGitStatus);
-  const setError = useAppStore((s) => s.setError);
   const [message, setMessage] = useState('ECM checkpoint');
   const [branchName, setBranchName] = useState('work/new-capability-model');
   const [contextBranch, setContextBranch] = useState('');
   const [integrationBranch, setIntegrationBranch] = useState('');
+  const [integrationCandidates, setIntegrationCandidates] = useState<BranchIntegrationCandidate[]>([]);
   const [releaseVersion, setReleaseVersion] = useState('0.1.0');
   const [releaseStatus, setReleaseStatus] = useState<ReleaseStatus | null>(null);
   const [history, setHistory] = useState<Checkpoint[]>([]);
@@ -265,44 +391,186 @@ export function GitPanel() {
 
   async function refresh() {
     try {
-      const [status, nextHistory, nextGraph, nextReleaseStatus] = await Promise.all([
+      const [status, nextHistory, nextGraph, nextReleaseStatus, nextIntegrationCandidates] = await Promise.all([
         api.git.status(),
         api.git.history(),
         api.git.graph(),
         api.releases.status(),
+        api.git.integrationCandidates(),
       ]);
       setGitStatus(status);
       setContextBranch((current) => validBranchOrFallback(current, status.branches, status.branch));
-      setIntegrationBranch((current) => validIntegrationBranchOrFallback(current, status.branches, status.branch));
+      setIntegrationBranch((current) => validIntegrationBranchOrFallback(current, nextIntegrationCandidates));
+      setIntegrationCandidates(nextIntegrationCandidates);
       setHistory(nextHistory);
       setGraph(nextGraph);
       setReleaseStatus(nextReleaseStatus);
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not refresh Git state',
+        body: errorMessage(error),
+        source: 'git',
+        dedupeKey: `git.refresh.${gitStatus?.branch ?? 'current'}`,
+        action: { label: 'Open Git', panelId: 'git' },
+      });
     }
   }
 
-  async function run(action: () => Promise<unknown>) {
+  async function runGitOperation<T>(
+    action: () => Promise<T>,
+    success: {
+      intent: 'git.checkpoint.created'
+        | 'git.branch.created'
+        | 'git.branch.switched'
+        | 'git.pull.completed'
+        | 'git.merge.completed'
+        | 'git.merge.aborted'
+        | 'release.cut'
+        | 'release.published';
+      title: string;
+      body?: string | ((result: T) => string | undefined);
+      source?: 'git' | 'release';
+      dedupeKey: string;
+    },
+    errorTitle: string,
+  ) {
     try {
-      await action();
-      await refresh();
+      const result = await action();
+      const body = typeof success.body === 'function' ? success.body(result) : success.body;
+      notify.success({
+        intent: success.intent,
+        title: success.title,
+        body,
+        source: success.source ?? 'git',
+        dedupeKey: success.dedupeKey,
+        action: { label: 'Open Git', panelId: 'git' },
+      });
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: errorTitle,
+        body: errorMessage(error),
+        source: success.source ?? 'git',
+        dedupeKey: `${success.dedupeKey}.error`,
+        action: { label: 'Open Git', panelId: 'git' },
+      });
+      return;
     }
+
+    await refresh();
   }
 
   async function checkpoint() {
-    await run(() => api.git.checkpoint(message));
+    const branch = gitStatus?.branch ?? 'current';
+    await runGitOperation(
+      () => api.git.checkpoint(message),
+      {
+        intent: 'git.checkpoint.created',
+        title: 'Checkpoint created',
+        body: (result) => `${result.message} (${result.id.slice(0, 10)})`,
+        dedupeKey: `git.checkpoint.${branch}`,
+      },
+      'Could not create checkpoint',
+    );
+  }
+
+  async function createBranch() {
+    await runGitOperation(
+      () => api.git.createBranch(branchName),
+      {
+        intent: 'git.branch.created',
+        title: 'Scenario created',
+        body: `Now editing ${branchName}.`,
+        dedupeKey: `git.branch.${branchName}`,
+      },
+      'Could not create scenario',
+    );
+  }
+
+  async function switchBranch() {
+    await runGitOperation(
+      () => api.git.switchBranch(contextBranch),
+      {
+        intent: 'git.branch.switched',
+        title: 'Scenario changed',
+        body: `Now editing ${contextBranch}.`,
+        dedupeKey: `git.switch.${contextBranch}`,
+      },
+      'Could not change scenario',
+    );
+  }
+
+  async function pull() {
+    const branch = gitStatus?.branch ?? 'current';
+    await runGitOperation(
+      () => api.git.pull(),
+      {
+        intent: 'git.pull.completed',
+        title: 'Updates received',
+        body: `Scenario ${branch} is current.`,
+        dedupeKey: `git.pull.${branch}`,
+      },
+      'Could not receive updates',
+    );
+  }
+
+  async function mergeBranch() {
+    const target = gitStatus?.branch ?? 'current';
+    await runGitOperation(
+      () => api.git.mergeBranch(integrationBranch),
+      {
+        intent: 'git.merge.completed',
+        title: 'Scenario integrated',
+        body: `${integrationBranch} integrated into ${target}.`,
+        dedupeKey: `git.merge.${integrationBranch}`,
+      },
+      'Could not integrate scenario',
+    );
+  }
+
+  async function abortMerge() {
+    const branch = gitStatus?.branch ?? 'current';
+    await runGitOperation(
+      () => api.git.abortMerge(),
+      {
+        intent: 'git.merge.aborted',
+        title: 'Integration aborted',
+        body: `Merge state cleared for ${branch}.`,
+        dedupeKey: `git.merge.abort.${branch}`,
+      },
+      'Could not abort integration',
+    );
   }
 
   async function cutRelease() {
-    await run(() => api.releases.cut(releaseVersion));
+    await runGitOperation(
+      () => api.releases.cut(releaseVersion),
+      {
+        intent: 'release.cut',
+        title: 'Release cut',
+        body: (result) => `${result.tag} is ready to publish.`,
+        source: 'release',
+        dedupeKey: `release.cut.${releaseVersion}`,
+      },
+      'Could not cut release',
+    );
   }
 
   async function publishRelease() {
     const tag = releaseStatus?.latest_release?.tag;
     if (!tag) return;
-    await run(() => api.releases.publish(tag));
+    await runGitOperation(
+      () => api.releases.publish(tag),
+      {
+        intent: 'release.published',
+        title: 'Release published',
+        body: (result) => result.github_release_url,
+        source: 'release',
+        dedupeKey: `release.publish.${tag}`,
+      },
+      'Could not publish release',
+    );
   }
 
   async function openReleaseUrl(event: MouseEvent<HTMLAnchorElement>) {
@@ -312,7 +580,14 @@ export function GitPanel() {
     try {
       await api.external.openUrl(url);
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not open release URL',
+        body: errorMessage(error),
+        source: 'release',
+        dedupeKey: `release.url.${url}`,
+        action: { label: 'Open Git', panelId: 'git' },
+      });
     }
   }
 
@@ -323,7 +598,9 @@ export function GitPanel() {
   const isRepo = gitStatus?.is_repo ?? false;
   const mergeInProgress = gitStatus?.merge_in_progress ?? false;
   const canRisk = isRepo && clean && !mergeInProgress;
-  const otherBranches = branches.filter((branch) => branch !== gitStatus?.branch);
+  const integrableBranches = integrationCandidates
+    .filter((candidate) => candidate.integrable)
+    .map((candidate) => candidate.name);
   const pendingCount = (gitStatus?.changed_files?.length ?? 0) + (gitStatus?.untracked_files?.length ?? 0);
   const releaseTag = releaseTagForVersion(releaseVersion);
   const canCut = canCutRelease(releaseStatus, gitStatus, releaseVersion);
@@ -348,9 +625,9 @@ export function GitPanel() {
       {mergeInProgress ? (
         <div className="card error workflow-card">
           <Text weight="semibold">Integration conflict detected</Text>
-          <Text size={200}>Abort the integration before changing context or publishing.</Text>
+          <Text size={200}>Abort the integration before changing scenario or publishing.</Text>
           {(gitStatus?.conflicted_files ?? []).map((file) => <Text key={file}>{file}</Text>)}
-          <Button appearance="primary" onClick={() => void run(() => api.git.abortMerge())}>Abort Integration</Button>
+          <Button appearance="primary" onClick={() => void abortMerge()}>Abort Integration</Button>
         </div>
       ) : null}
 
@@ -366,31 +643,31 @@ export function GitPanel() {
 
         <div className="card workflow-card">
           <Text weight="semibold">New Scenario</Text>
-          <Text size={200}>Starts from {gitStatus?.branch ?? 'the current context'}.</Text>
+          <Text size={200}>Starts from {gitStatus?.branch ?? 'the current scenario'}.</Text>
           <Input value={branchName} onChange={(_, d) => setBranchName(d.value)} aria-label="Scenario name" />
-          <Button disabled={!canRisk} onClick={() => void run(() => api.git.createBranch(branchName))}>
+          <Button disabled={!canRisk} onClick={() => void createBranch()}>
             Create Scenario
           </Button>
         </div>
 
         <div className="card workflow-card">
-          <Text weight="semibold">Change Context</Text>
+          <Text weight="semibold">Change Scenario</Text>
           <Text size={200}>Open another scenario for editing.</Text>
           <select className="select" value={contextBranch} onChange={(event) => setContextBranch(event.target.value)}>
             {branches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
           </select>
-          <Button disabled={!canRisk || !contextBranch || contextBranch === gitStatus?.branch} onClick={() => void run(() => api.git.switchBranch(contextBranch))}>
-            Change Context
+          <Button disabled={!canRisk || !contextBranch || contextBranch === gitStatus?.branch} onClick={() => void switchBranch()}>
+            Change Scenario
           </Button>
         </div>
 
         <div className="card workflow-card">
           <Text weight="semibold">Integrate Scenario</Text>
-          <Text size={200}>Bring another scenario into {gitStatus?.branch ?? 'the current context'}.</Text>
+          <Text size={200}>Bring another scenario into {gitStatus?.branch ?? 'the current scenario'}.</Text>
           <select className="select" value={integrationBranch} onChange={(event) => setIntegrationBranch(event.target.value)}>
-            {otherBranches.length ? otherBranches.map((branch) => <option key={branch} value={branch}>{branch}</option>) : <option value="">No other scenarios</option>}
+            {integrableBranches.length ? integrableBranches.map((branch) => <option key={branch} value={branch}>{branch}</option>) : <option value="">No scenarios with pending integration</option>}
           </select>
-          <Button disabled={!canRisk || !integrationBranch} onClick={() => void run(() => api.git.mergeBranch(integrationBranch))}>
+          <Button disabled={!canRisk || !integrationBranch || !integrableBranches.includes(integrationBranch)} onClick={() => void mergeBranch()}>
             Integrate Into Current
           </Button>
         </div>
@@ -408,7 +685,7 @@ export function GitPanel() {
             <Text size={200}>Latest {releaseStatus.latest_release.tag} ({releaseStatus.latest_release.state})</Text>
           ) : null}
           <div className="toolbar">
-            <Button disabled={!canRisk || !gitStatus?.has_remote} onClick={() => void run(() => api.git.pull())}>
+            <Button disabled={!canRisk || !gitStatus?.has_remote} onClick={() => void pull()}>
               Receive Updates
             </Button>
             <Button disabled={!canCut} appearance="primary" onClick={() => void cutRelease()}>
@@ -504,10 +781,15 @@ function validBranchOrFallback(current: string, branches: string[], activeBranch
   return activeBranch || branches[0] || '';
 }
 
-function validIntegrationBranchOrFallback(current: string, branches: string[], activeBranch?: string | null) {
-  const otherBranches = branches.filter((branch) => branch !== activeBranch);
-  if (current && otherBranches.includes(current)) return current;
-  return otherBranches[0] || '';
+export function validIntegrationBranchOrFallback(
+  current: string,
+  candidates: BranchIntegrationCandidate[],
+) {
+  const integrableBranches = candidates
+    .filter((candidate) => candidate.integrable)
+    .map((candidate) => candidate.name);
+  if (current && integrableBranches.includes(current)) return current;
+  return integrableBranches[0] || '';
 }
 
 const gitGraphTemplate = templateExtend(TemplateName.Metro, {
@@ -568,17 +850,38 @@ function GitGraphView({ graph }: { graph: GitGraphData | null }) {
 export function DiagnosticsPanel() {
   const diagnostics = useAppStore((s) => s.diagnostics);
   const setDiagnostics = useAppStore((s) => s.setDiagnostics);
-  const setError = useAppStore((s) => s.setError);
 
-  async function run() {
+  async function run(options: { silent?: boolean } = {}) {
     try {
-      setDiagnostics(await api.diagnostics.run());
+      const nextDiagnostics = await api.diagnostics.run();
+      setDiagnostics(nextDiagnostics);
+      if (!options.silent) {
+        const errorCount = nextDiagnostics.filter((item) => item.severity === 'error').length;
+        const warningCount = nextDiagnostics.filter((item) => item.severity === 'warning').length;
+        notify[errorCount || warningCount ? 'warning' : 'success']({
+          intent: 'diagnostics.completed',
+          title: 'Diagnostics completed',
+          body: errorCount || warningCount
+            ? `${errorCount} errors and ${warningCount} warnings found.`
+            : 'No diagnostics reported.',
+          source: 'diagnostics',
+          dedupeKey: 'diagnostics.run',
+          action: { label: 'Open diagnostics', panelId: 'diagnostics' },
+        });
+      }
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not run diagnostics',
+        body: errorMessage(error),
+        source: 'diagnostics',
+        dedupeKey: 'diagnostics.run',
+        action: { label: 'Open diagnostics', panelId: 'diagnostics' },
+      });
     }
   }
 
-  useEffect(() => { void run(); }, []);
+  useEffect(() => { void run({ silent: true }); }, []);
 
   return (
     <section className="panel stack">
@@ -597,14 +900,20 @@ export function DiagnosticsPanel() {
 export function AuditPanel() {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
-  const setError = useAppStore((s) => s.setError);
 
   async function refresh() {
     try {
       setEvents(await api.audit.recent());
       setExpandedKey(null);
     } catch (error) {
-      setError(String(error));
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not refresh audit events',
+        body: errorMessage(error),
+        source: 'diagnostics',
+        dedupeKey: 'audit.refresh',
+        action: { label: 'Open audit', panelId: 'audit' },
+      });
     }
   }
 

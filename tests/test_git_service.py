@@ -104,6 +104,41 @@ def test_git_merge_conflict_detection_and_abort(tmp_path: Path) -> None:
     assert git.status()["merge_in_progress"] is False
 
 
+def test_git_integration_candidates_hide_integrated_until_new_commits(tmp_path: Path) -> None:
+    workspace = WorkspaceRepository(tmp_path)
+    workspace.init("Integration Candidates")
+    capabilities = tmp_path / "ecm" / "capabilities.jsonl"
+    git = GitService(tmp_path)
+    git.init()
+    git.checkpoint("Initial")
+    base_branch = git.current_branch() or "master"
+
+    git.create_branch("work/scenario")
+    capabilities.write_text("feature\n", encoding="utf-8")
+    git.checkpoint("Feature change")
+
+    git.switch_branch(base_branch)
+    candidates = git.integration_candidates()
+
+    assert candidates == [{"name": "work/scenario", "integrable": True}]
+
+    git.merge_branch("work/scenario")
+
+    assert git.integration_candidates() == [{"name": "work/scenario", "integrable": False}]
+
+    with pytest.raises(AppError) as exc:
+        git.merge_branch("work/scenario")
+    assert exc.value.code == "GIT_BRANCH_ALREADY_INTEGRATED"
+
+    git.switch_branch("work/scenario")
+    capabilities.write_text("feature again\n", encoding="utf-8")
+    git.checkpoint("More scenario work")
+
+    git.switch_branch(base_branch)
+
+    assert git.integration_candidates() == [{"name": "work/scenario", "integrable": True}]
+
+
 def test_git_push_requires_remote_and_pushes_when_configured(tmp_path: Path) -> None:
     workspace = WorkspaceRepository(tmp_path / "workspace")
     workspace.init("Remote")

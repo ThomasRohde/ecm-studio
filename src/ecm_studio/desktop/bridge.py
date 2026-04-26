@@ -153,6 +153,10 @@ class BridgeApi:
         return self._services.git.list_branches()
 
     @envelope
+    def git_integration_candidates(self) -> list[dict[str, Any]]:
+        return self._services.git.integration_candidates()
+
+    @envelope
     def git_create_branch(self, name: str) -> dict[str, Any]:
         return self._services.git.create_branch(name)
 

@@ -1,6 +1,7 @@
 import type {
   AppSettings,
   AuditEvent,
+  BranchIntegrationCandidate,
   Capability,
   CapabilityPatch,
   Checkpoint,
@@ -237,6 +238,7 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
   }
   if (method === 'git_status') return mockState.git as T;
   if (method === 'git_list_branches') return mockState.git.branches as T;
+  if (method === 'git_integration_candidates') return mockIntegrationCandidates() as T;
   if (method === 'git_create_branch') {
     const branch = String(args[0] || 'work/new-branch');
     if (!mockState.git.branches.includes(branch)) mockState.git.branches.push(branch);
@@ -251,7 +253,11 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
   }
   if (method === 'git_merge_branch') {
     const sourceBranch = String(args[0]);
-    addMockGraphCommit(`Integrate ${sourceBranch}`, [headForBranch(mockState.git.branch), headForBranch(sourceBranch)].filter(Boolean) as string[]);
+    const sourceHead = headForBranch(sourceBranch);
+    if (!sourceHead || isMockAncestor(sourceHead, headForBranch(mockState.git.branch))) {
+      throw new Error(`GIT_BRANCH_ALREADY_INTEGRATED: Scenario "${sourceBranch}" is already integrated into the current scenario.`);
+    }
+    addMockGraphCommit(`Integrate ${sourceBranch}`, [headForBranch(mockState.git.branch), sourceHead].filter(Boolean) as string[]);
     return { merged: true, source_branch: sourceBranch, target_branch: mockState.git.branch } as T;
   }
   if (method === 'git_abort_merge') {
@@ -427,6 +433,19 @@ function mockGitGraph(limit: number): GitGraphData {
   };
 }
 
+function mockIntegrationCandidates(): BranchIntegrationCandidate[] {
+  const currentHead = headForBranch(mockState.git.branch);
+  return mockState.git.branches
+    .filter((branch) => branch !== mockState.git.branch)
+    .map((branch) => {
+      const sourceHead = headForBranch(branch);
+      return {
+        name: branch,
+        integrable: Boolean(sourceHead && !isMockAncestor(sourceHead, currentHead)),
+      };
+    });
+}
+
 function addMockGraphCommit(subject: string, parents: string[] = [], hash = crypto.randomUUID()) {
   const branch = mockState.git.branch ?? 'main';
   removeBranchRef(branch);
@@ -447,6 +466,22 @@ function addMockGraphCommit(subject: string, parents: string[] = [], hash = cryp
 function headForBranch(branch?: string | null): string | null {
   if (!branch) return null;
   return mockState.graphCommits.find((commit) => commit.refs.includes(branch))?.hash ?? null;
+}
+
+function isMockAncestor(ancestorHash: string, descendantHash: string | null): boolean {
+  if (!descendantHash) return false;
+  if (ancestorHash === descendantHash) return true;
+  const visited = new Set<string>();
+  const pending = [descendantHash];
+  while (pending.length) {
+    const hash = pending.pop();
+    if (!hash || visited.has(hash)) continue;
+    if (hash === ancestorHash) return true;
+    visited.add(hash);
+    const commit = mockState.graphCommits.find((item) => item.hash === hash);
+    if (commit) pending.push(...commit.parents);
+  }
+  return false;
 }
 
 function addBranchRef(branch: string, hash: string) {
@@ -544,6 +579,7 @@ export const api = {
     graph: (limit = 50) => call<GitGraphData>('git_graph', limit),
     compare: (from: string, to: string) => call<unknown>('git_compare', from, to),
     listBranches: () => call<string[]>('git_list_branches'),
+    integrationCandidates: () => call<BranchIntegrationCandidate[]>('git_integration_candidates'),
     createBranch: (name: string) => call<{ branch: string; current_branch: string | null }>('git_create_branch', name),
     switchBranch: (name: string) => call<{ branch: string; rebuild?: unknown }>('git_switch_branch', name),
     mergeBranch: (sourceBranch: string) => call<{ merged: boolean; source_branch: string; target_branch: string | null }>('git_merge_branch', sourceBranch),

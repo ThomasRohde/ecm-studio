@@ -67,6 +67,23 @@ body {
   object-fit: contain;
 }
 
+.notification-button {
+  position: relative;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.notification-button + .app-logo {
+  margin-left: 0;
+}
+
+.notification-counter {
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translate(35%, -35%);
+}
+
 .title-copy {
   display: flex;
   flex-direction: column;
@@ -832,6 +849,105 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--app-fg);
+}
+
+.notification-drawer {
+  --notification-border: var(--panel-border);
+  --notification-surface: var(--panel-bg);
+  --notification-soft: var(--panel-soft);
+}
+
+.notification-center-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.notification-list {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.notification-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.notification-item.unread {
+  border-color: var(--accent);
+}
+
+.notification-item.success {
+  border-left: 4px solid #107c10;
+}
+
+.notification-item.info,
+.notification-item.progress {
+  border-left: 4px solid var(--accent);
+}
+
+.notification-item.warning {
+  border-left: 4px solid #b85c00;
+}
+
+.notification-item.error {
+  border-left: 4px solid #d13438;
+}
+
+.notification-item-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  color: var(--accent);
+}
+
+.notification-item-main {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.notification-item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.notification-item-title-row > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-kind {
+  flex: 0 0 auto;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.notification-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  color: var(--muted-fg);
+  font-size: 12px;
 }
 
 @media (max-width: 900px) {

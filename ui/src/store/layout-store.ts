@@ -2,10 +2,18 @@ import { create } from 'zustand';
 import type { DockviewApi } from 'dockview';
 
 export type PanelGroup = 'Workspace' | 'Model' | 'Operations';
+export type PanelId =
+  | 'workspace'
+  | 'tree'
+  | 'inspector'
+  | 'git'
+  | 'import_export'
+  | 'diagnostics'
+  | 'audit';
 
 export interface PanelDef {
-  id: string;
-  component: string;
+  id: PanelId;
+  component: PanelId;
   title: string;
   group: PanelGroup;
   description: string;
@@ -63,15 +71,15 @@ export const PANEL_DEFS: PanelDef[] = [
   },
 ];
 
-function defFor(id: string): PanelDef | undefined {
+function defFor(id: PanelId): PanelDef | undefined {
   return PANEL_DEFS.find((panel) => panel.id === id);
 }
 
-function panelExists(api: DockviewApi, id: string): boolean {
+function panelExists(api: DockviewApi, id: PanelId): boolean {
   return api.panels.some((panel) => panel.id === id);
 }
 
-function openPanelOnApi(api: DockviewApi, id: string): void {
+function openPanelOnApi(api: DockviewApi, id: PanelId): void {
   const existing = api.panels.find((panel) => panel.id === id);
   if (existing) {
     existing.api.setActive();
@@ -137,7 +145,7 @@ interface LayoutState {
   openPanelIds: string[];
   setApi: (api: DockviewApi) => void;
   syncOpenPanels: () => void;
-  openPanel: (id: string) => void;
+  openPanel: (id: PanelId) => void;
   resetLayout: () => void;
 }
 
@@ -179,7 +187,7 @@ export function createInitialLayout(api: DockviewApi): void {
   useLayoutStore.getState().syncOpenPanels();
 }
 
-export function isPanelOpen(id: string): boolean {
+export function isPanelOpen(id: PanelId): boolean {
   const api = useLayoutStore.getState().api;
   return api ? panelExists(api, id) : false;
 }

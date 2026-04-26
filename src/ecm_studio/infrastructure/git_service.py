@@ -238,6 +238,23 @@ class GitService:
                 files.append({"path": parts[2], "additions": additions, "deletions": deletions})
         return {"from": from_ref, "to": to_ref, "files": files}
 
+    def integration_candidates(self) -> list[dict]:
+        self._require_repo()
+        current = self.current_branch()
+        if current is None:
+            return []
+        candidates: list[dict] = []
+        for branch in self.list_branches():
+            if branch == current:
+                continue
+            candidates.append(
+                {
+                    "name": branch,
+                    "integrable": not self.is_ancestor(branch, "HEAD"),
+                }
+            )
+        return candidates
+
     def restore(self, checkpoint_id: str, force: bool = False) -> None:
         self._require_repo()
         status = self.status()
@@ -275,6 +292,11 @@ class GitService:
         if branch not in self.list_branches():
             raise AppError("GIT_BRANCH_NOT_FOUND", f'Branch "{branch}" does not exist.')
         self._require_clean()
+        if self.is_ancestor(branch, "HEAD"):
+            raise AppError(
+                "GIT_BRANCH_ALREADY_INTEGRATED",
+                f'Scenario "{branch}" is already integrated into the current scenario.',
+            )
         result = self._run_git("merge", "--no-ff", branch, "-m", f"Merge {branch}", check=False)
         if result.returncode != 0:
             status = self.status()

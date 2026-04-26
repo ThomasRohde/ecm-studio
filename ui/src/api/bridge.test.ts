@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { api } from './bridge';
-import { canApplyImportPreview, canCutRelease, canPublishRelease, releaseTagForVersion } from '../components/WorkspacePanels';
+import {
+  canApplyImportPreview,
+  canCutRelease,
+  canPublishRelease,
+  releaseTagForVersion,
+  validIntegrationBranchOrFallback,
+} from '../components/WorkspacePanels';
 import type { Capability, GitStatus, ImportPreview, ReleaseStatus } from './types';
 
 beforeEach(() => {
@@ -25,6 +31,10 @@ describe('bridge mock fallback', () => {
     const preview = await api.models.importPreview(null, 'append');
     const branch = await api.git.createBranch('work/mock');
     const checkpoint = await api.git.checkpoint('Graph checkpoint');
+    const candidatesBeforeMerge = await api.git.integrationCandidates();
+    await api.git.switchBranch('main');
+    await api.git.mergeBranch('work/mock');
+    const candidatesAfterMerge = await api.git.integrationCandidates();
     const status = await api.git.status();
     const graph = await api.git.graph();
     const external = await api.external.openUrl('https://github.com/mock/ecm/releases/tag/ecm-v1.0.0');
@@ -34,10 +44,11 @@ describe('bridge mock fallback', () => {
     expect(exportResult?.format).toBe('json_bundle');
     expect(preview?.invalid).toBe(0);
     expect(branch.branch).toBe('work/mock');
-    expect(status.branch).toBe('work/mock');
-    expect(graph.current_branch).toBe('work/mock');
-    expect(graph.commits[0].hash).toBe(checkpoint.id);
-    expect(graph.commits[0].refs).toContain('work/mock');
+    expect(candidatesBeforeMerge).toContainEqual({ name: 'main', integrable: false });
+    expect(candidatesAfterMerge).toContainEqual({ name: 'work/mock', integrable: false });
+    expect(status.branch).toBe('main');
+    expect(graph.current_branch).toBe('main');
+    expect(graph.commits.some((commit) => commit.hash === checkpoint.id)).toBe(true);
     expect(external.opened).toBe(true);
   });
 
@@ -148,6 +159,18 @@ describe('bridge mock fallback', () => {
       export_paths: [],
       released_at: '2026-04-25T00:00:00Z',
     } }, git)).toBe(true);
+  });
+
+  it('chooses only integrable scenario branches for integration', () => {
+    const candidates = [
+      { name: 'work/done', integrable: false },
+      { name: 'work/pending', integrable: true },
+      { name: 'work/later', integrable: true },
+    ];
+
+    expect(validIntegrationBranchOrFallback('work/later', candidates)).toBe('work/later');
+    expect(validIntegrationBranchOrFallback('work/done', candidates)).toBe('work/pending');
+    expect(validIntegrationBranchOrFallback('', [{ name: 'work/done', integrable: false }])).toBe('');
   });
 });
 
