@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type {
+  AppInfo,
   AuditEvent,
   BranchIntegrationCandidate,
   Capability,
@@ -24,6 +25,7 @@ export interface WorkspaceSnapshot {
 }
 
 interface AppState {
+  appInfo: AppInfo | null;
   workspace: Workspace | null;
   tree: Capability[];
   selectedId: string | null;
@@ -37,6 +39,7 @@ interface AppState {
   diagnostics: Diagnostic[];
   auditEvents: AuditEvent[];
   error: string | null;
+  setAppInfo: (appInfo: AppInfo | null) => void;
   setWorkspace: (workspace: Workspace | null) => void;
   setTree: (tree: Capability[]) => void;
   setSelected: (capability: Capability | null) => void;
@@ -76,8 +79,10 @@ function flattenCapabilities(nodes: Capability[]): Capability[] {
 }
 
 export const useAppStore = create<AppState>((set) => ({
+  appInfo: null,
   workspace: null,
   ...EMPTY_WORKSPACE_DATA,
+  setAppInfo: (appInfo) => set({ appInfo }),
   setWorkspace: (workspace) => set((state) => {
     if (!workspace) return { workspace: null, ...EMPTY_WORKSPACE_DATA };
     if (state.workspace?.path === workspace.path) {
@@ -132,5 +137,5 @@ export const useAppStore = create<AppState>((set) => ({
     };
   }),
   clearWorkspaceData: () => set({ workspace: null, ...EMPTY_WORKSPACE_DATA }),
-  reset: () => set({ workspace: null, ...EMPTY_WORKSPACE_DATA }),
+  reset: () => set({ appInfo: null, workspace: null, ...EMPTY_WORKSPACE_DATA }),
 }));

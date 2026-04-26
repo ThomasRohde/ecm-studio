@@ -2,6 +2,11 @@ export type Envelope<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: string; message: string; detail?: unknown } };
 
+export interface AppInfo {
+  name: string;
+  version: string;
+}
+
 export interface Workspace {
   path: string;
   name: string;

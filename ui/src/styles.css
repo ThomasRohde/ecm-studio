@@ -671,10 +671,28 @@ body {
   white-space: nowrap;
 }
 
+.statusbar > span {
+  min-width: 0;
+}
+
+.status-workspace,
 .status-error {
-  color: var(--error-fg);
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.status-workspace {
+  flex: 1 1 auto;
+}
+
+.status-error {
+  color: var(--error-fg);
+}
+
+.status-version {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--muted-fg);
 }
 
 .select {

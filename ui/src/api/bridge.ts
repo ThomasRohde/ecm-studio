@@ -1,4 +1,5 @@
 import type {
+  AppInfo,
   AppSettings,
   AuditEvent,
   BranchIntegrationCandidate,
@@ -82,6 +83,7 @@ async function call<T>(method: string, ...args: unknown[]): Promise<T> {
 }
 
 async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
+  if (method === 'app_info') return { name: 'ECM Studio', version: '0.1.0.dev0' } as T;
   if (method === 'settings_get') return mockState.settings as T;
   if (method === 'settings_update') {
     const patch = args[0] as Partial<AppSettings>;
@@ -551,6 +553,9 @@ function mockReleaseStatus(): ReleaseStatus {
 }
 
 export const api = {
+  app: {
+    info: () => call<AppInfo>('app_info'),
+  },
   settings: {
     get: () => call<AppSettings>('settings_get'),
     update: (patch: { theme_mode?: ThemeMode }) => call<AppSettings>('settings_update', patch),

@@ -9,6 +9,7 @@ description = "Desktop-first Enterprise Capability Model studio with Git-managed
 readme = "README.md"
 requires-python = ">=3.13"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Thomas Klok Rohde" }]
 keywords = ["enterprise-architecture", "capability-model", "desktop", "git", "jsonl", "sqlite"]
 classifiers = [
@@ -30,14 +31,22 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "build>=1.2",
+    "hatch>=1.14",
     "pytest>=8.3",
     "pytest-cov>=6.0",
     "ruff>=0.8",
+    "twine>=6.1",
     "pyinstaller>=6.11",
 ]
 
 [project.gui-scripts]
 ecms = "ecm_studio.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/ThomasRohde/ecm-studio"
+Issues = "https://github.com/ThomasRohde/ecm-studio/issues"
+Changelog = "https://github.com/ThomasRohde/ecm-studio/blob/main/CHANGELOG.md"
 
 [tool.hatch.version]
 path = "src/ecm_studio/__init__.py"
@@ -45,6 +54,9 @@ path = "src/ecm_studio/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/ecm_studio"]
 artifacts = ["src/ecm_studio/assets/**"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/ecm_studio", "README.md", "LICENSE", "CHANGELOG.md"]
 
 [tool.ruff]
 line-length = 100

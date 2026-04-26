@@ -17,6 +17,7 @@ ui/.vite/
 build/
 dist/
 !packaging/*.spec
+src/ecm_studio/assets/ui/
 
 # ECM runtime state
 .ecm-studio/

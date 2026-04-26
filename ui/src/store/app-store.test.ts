@@ -16,6 +16,16 @@ beforeEach(() => {
 });
 
 describe('app store workspace snapshots', () => {
+  it('stores app info independently from workspace data', () => {
+    useAppStore.getState().setAppInfo({ name: 'ECM Studio', version: '0.1.0.dev0' });
+    useAppStore.getState().clearWorkspaceData();
+
+    expect(useAppStore.getState().appInfo).toEqual({
+      name: 'ECM Studio',
+      version: '0.1.0.dev0',
+    });
+  });
+
   it('applies complete workspace view state', () => {
     const snapshot = workspaceSnapshot('C:/work/a', [capability('cap-a', 'Payments')]);
 

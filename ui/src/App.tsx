@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FluentProvider, webDarkTheme, webLightTheme } from '@fluentui/react-components';
+import { api } from './api/bridge';
 import { StudioLayout } from './components/StudioLayout';
 import { StatusBar } from './components/StatusBar';
 import { AppMenu } from './components/AppMenu';
@@ -19,7 +20,12 @@ export function App() {
   const settings = useSettingsStore((state) => state.settings);
   const loadSettings = useSettingsStore((state) => state.load);
   const gitStatus = useAppStore((state) => state.gitStatus);
+  const setAppInfo = useAppStore((state) => state.setAppInfo);
   const fluentTheme = settings.resolved_theme === 'dark' ? webDarkTheme : webLightTheme;
+
+  useEffect(() => {
+    void api.app.info().then(setAppInfo).catch(() => setAppInfo(null));
+  }, [setAppInfo]);
 
   useEffect(() => {
     void loadSettings();

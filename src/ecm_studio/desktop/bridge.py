@@ -6,6 +6,7 @@ from typing import Any
 
 import webview
 
+from ecm_studio import __version__
 from ecm_studio.application.results import envelope
 from ecm_studio.application.services import AppServices
 from ecm_studio.desktop.theme import apply_windows_chrome_theme
@@ -22,6 +23,10 @@ class BridgeApi:
 
     def attach_window(self, window: Any) -> None:
         self._window = window
+
+    @envelope
+    def app_info(self) -> dict[str, str]:
+        return {"name": "ECM Studio", "version": __version__}
 
     @envelope
     def settings_get(self) -> dict[str, Any]:

@@ -14,6 +14,12 @@ beforeEach(() => {
 });
 
 describe('bridge mock fallback', () => {
+  it('returns app info without pywebview', async () => {
+    const appInfo = await api.app.info();
+
+    expect(appInfo).toEqual({ name: 'ECM Studio', version: '0.1.0.dev0' });
+  });
+
   it('initializes a workspace and creates a capability without pywebview', async () => {
     const workspace = await api.workspace.init('C:/tmp/ecm', 'Demo');
     const root = await api.capabilities.create({ name: 'Payments', type: 'abstract' });
