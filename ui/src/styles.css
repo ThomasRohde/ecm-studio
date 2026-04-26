@@ -951,33 +951,112 @@ body {
 }
 
 .blocking-task-surface {
-  max-width: min(440px, calc(100vw - 32px));
+  --blocking-task-accent: var(--accent);
+  width: min(430px, calc(100vw - 32px));
+  max-width: min(430px, calc(100vw - 32px));
+  overflow: hidden;
   border: 1px solid var(--panel-border);
+  border-radius: 8px;
   background: var(--panel-bg);
   color: var(--app-fg);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
 }
 
 .blocking-task-surface.release {
-  border-top: 4px solid var(--accent);
+  --blocking-task-accent: var(--accent);
 }
 
 .blocking-task-surface.git {
-  border-top: 4px solid #107c10;
+  --blocking-task-accent: #107c10;
+}
+
+:root[data-theme="dark"] .blocking-task-surface.git {
+  --blocking-task-accent: #9fd89f;
+}
+
+.blocking-task-body {
+  row-gap: 0;
+}
+
+.blocking-task-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -24px -24px 0;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--panel-border);
+  background: var(--titlebar-bg);
+  color: var(--app-fg);
+}
+
+.blocking-task-title-mark {
+  width: 9px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--blocking-task-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--blocking-task-accent) 18%, transparent);
+}
+
+.blocking-task-dialog-content {
+  margin: 0 -24px -24px;
+  padding: 16px 18px 18px;
+  background: var(--panel-bg);
 }
 
 .blocking-task-content {
   display: grid;
   gap: 14px;
-  min-width: min(360px, calc(100vw - 80px));
+  min-width: 0;
+}
+
+.blocking-task-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--app-fg);
+  line-height: 1.35;
+}
+
+.blocking-task-progress {
+  background: var(--panel-soft);
+}
+
+.blocking-task-progress .fui-ProgressBar__bar {
+  background: var(--blocking-task-accent);
+}
+
+.blocking-task-status .fui-Spinner__spinner {
+  background-color: color-mix(in srgb, var(--blocking-task-accent) 20%, transparent);
+  color: var(--blocking-task-accent);
+}
+
+.blocking-task-status .fui-Spinner__spinnerTail::before,
+.blocking-task-status .fui-Spinner__spinnerTail::after {
+  background-image: conic-gradient(transparent 225deg, var(--blocking-task-accent) 225deg);
 }
 
 .blocking-task-step {
   display: grid;
-  gap: 4px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
   padding: 10px;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   background: var(--panel-soft);
+}
+
+.blocking-task-step-marker {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--blocking-task-accent);
+}
+
+.blocking-task-step > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
 }
 
 .blocking-task-details {

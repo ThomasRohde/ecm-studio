@@ -23,23 +23,35 @@ export function BlockingTaskDialog() {
   return (
     <Dialog open={open} modalType="alert">
       <DialogSurface className={`blocking-task-surface ${kind ?? 'default'}`}>
-        <DialogBody>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogContent>
+        <DialogBody className="blocking-task-body">
+          <DialogTitle className="blocking-task-title">
+            <span aria-hidden="true" className="blocking-task-title-mark" />
+            <span>{title}</span>
+          </DialogTitle>
+          <DialogContent className="blocking-task-dialog-content">
             <div className="blocking-task-content">
               {hasProgress ? (
                 <>
-                  <Text id="blocking-task-message">{message}</Text>
-                  <ProgressBar value={progress} max={1} thickness="medium" />
+                  <div className="blocking-task-status">
+                    <Spinner size="tiny" />
+                    <Text id="blocking-task-message">{message}</Text>
+                  </div>
+                  <ProgressBar className="blocking-task-progress" value={progress} max={1} thickness="medium" />
                 </>
               ) : (
-                <Spinner label={message} labelPosition="after" />
+                <div className="blocking-task-status">
+                  <Spinner size="tiny" />
+                  <Text>{message}</Text>
+                </div>
               )}
 
               {currentStep ? (
-                <div className="blocking-task-step">
-                  <Text size={200}>Current step</Text>
-                  <Text weight="semibold">{currentStep}</Text>
+                <div aria-live="polite" className="blocking-task-step">
+                  <span aria-hidden="true" className="blocking-task-step-marker" />
+                  <div>
+                    <Text size={200}>Current step</Text>
+                    <Text weight="semibold">{currentStep}</Text>
+                  </div>
                 </div>
               ) : null}
 
