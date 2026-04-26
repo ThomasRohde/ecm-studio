@@ -11,7 +11,7 @@ capability owners a focused workspace for editing capability trees, reviewing
 change history, publishing model snapshots, and exporting portable artifacts
 without putting the authoritative model in a database.
 
-![ECM Studio screenshot](screenshot.png)
+![ECM Studio screenshot](https://raw.githubusercontent.com/ThomasRohde/ecm-studio/master/screenshot.png)
 
 ## Highlights
 

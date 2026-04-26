@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.2] - 2026-04-26
+
+- Use an absolute GitHub-hosted screenshot URL so the PyPI README renders the image.
+
 ## [0.3.1] - 2026-04-26
 
 - Clarify installation instructions for standard `pip`, Windows Python launcher fallback, and uv users.

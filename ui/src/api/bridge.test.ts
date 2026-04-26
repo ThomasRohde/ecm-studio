@@ -17,7 +17,7 @@ describe('bridge mock fallback', () => {
   it('returns app info without pywebview', async () => {
     const appInfo = await api.app.info();
 
-    expect(appInfo).toEqual({ name: 'ECM Studio', version: '0.3.1' });
+    expect(appInfo).toEqual({ name: 'ECM Studio', version: '0.3.2' });
   });
 
   it('uses the pywebview API when it is available', async () => {

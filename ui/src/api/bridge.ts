@@ -195,7 +195,7 @@ function waitForPywebviewApi(method: string): Promise<void> {
 }
 
 async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
-  if (method === 'app_info') return { name: 'ECM Studio', version: '0.3.1' } as T;
+  if (method === 'app_info') return { name: 'ECM Studio', version: '0.3.2' } as T;
   if (method === 'settings_get') return mockState.settings as T;
   if (method === 'settings_update') {
     const patch = args[0] as SettingsPatch;
