@@ -245,6 +245,12 @@ export interface Checkpoint {
   skipped: boolean;
 }
 
+export interface GitDiscardResult {
+  reverted_files: string[];
+  deleted_files: string[];
+  rebuild: { capability_count: number; source_hash: string };
+}
+
 export interface Diagnostic {
   code: string;
   message: string;

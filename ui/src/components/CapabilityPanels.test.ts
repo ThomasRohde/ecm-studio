@@ -11,4 +11,8 @@ describe('structural operation controls', () => {
     expect(canRunStructuralDialog('merge', 'Duplicate capability', '')).toBe(false);
     expect(canRunStructuralDialog('merge', 'Duplicate capability', 'survivor-id')).toBe(true);
   });
+
+  it('does not require rationale for move', () => {
+    expect(canRunStructuralDialog('move', '', '')).toBe(true);
+  });
 });

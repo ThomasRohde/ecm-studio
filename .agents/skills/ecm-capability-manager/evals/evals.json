@@ -1,0 +1,24 @@
+{
+  "skill_name": "ecm-capability-manager",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Add a new top-level capability called Payments with domain Banking, tag it finance, and set the steward to payments-steward in this ECM repository.",
+      "expected_output": "A valid new capability is added to ecm/capabilities.jsonl with normalized ordering and a create audit event recorded.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Find the capability named Customer Onboarding, rename it to Customer Activation, move it under the Customer Management capability, and keep the model valid.",
+      "expected_output": "The capability is updated and moved safely, order is normalized, and matching audit events are appended.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Merge the duplicate capability Duplicate into Canonical with the rationale 'Duplicate model entry' and preserve a safe redirect if the source is not Draft.",
+      "expected_output": "Children move to the survivor, aliases are preserved, the source is deleted or retired appropriately, and validation still passes.",
+      "files": []
+    }
+  ]
+}
+

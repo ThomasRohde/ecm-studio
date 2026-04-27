@@ -20,6 +20,8 @@ export type ToastIntent =
   | 'git.pull.completed'
   | 'git.merge.completed'
   | 'git.merge.aborted'
+  | 'git.restore.completed'
+  | 'git.discard.completed'
   | 'release.cut'
   | 'release.published'
   | 'release.url.opened'

@@ -193,6 +193,10 @@ class BridgeApi:
         return self._services.git.restore(checkpoint_id, force=force)
 
     @envelope
+    def git_discard_pending_changes(self) -> dict[str, Any]:
+        return self._services.git.discard_pending_changes()
+
+    @envelope
     def git_list_branches(self) -> list[str]:
         return self._services.git.list_branches()
 

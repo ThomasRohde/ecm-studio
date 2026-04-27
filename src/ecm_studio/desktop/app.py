@@ -11,6 +11,7 @@ import webview
 from ecm_studio.application.services import AppServices
 
 from .bridge import BridgeApi
+from .windows_shortcut import APP_USER_MODEL_ID, repair_windows_shortcut
 
 for _name in ("pywebview", "pywebview.util", "pywebview.platforms.edgechromium", "webview"):
     logging.getLogger(_name).setLevel(logging.CRITICAL)
@@ -44,7 +45,7 @@ def _set_windows_app_id() -> None:
     if sys.platform != "win32":
         return
     try:
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("ecm-studio.ecm-studio")
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
     except Exception:
         return
 
@@ -66,6 +67,8 @@ def _fallback_page() -> Path:
 
 def run(workspace: Path | None = None, dev_ui: str | None = None) -> int:
     _set_windows_app_id()
+    icon = _app_icon()
+    repair_windows_shortcut(icon)
     services = AppServices()
     api = BridgeApi(services)
     if workspace is not None:
@@ -88,6 +91,5 @@ def run(workspace: Path | None = None, dev_ui: str | None = None) -> int:
         api.settings_get()
 
     window.events.loaded += _apply_initial_theme
-    icon = _app_icon()
     webview.start(icon=str(icon) if icon is not None else None)
     return 0

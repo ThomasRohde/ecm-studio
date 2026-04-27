@@ -100,6 +100,8 @@ describe('bridge mock fallback', () => {
     const preview = await api.models.importPreview(null, 'append');
     const branch = await api.git.createBranch('work/mock');
     const checkpoint = await api.git.checkpoint('Graph checkpoint');
+    const restore = await api.git.restore(checkpoint.id);
+    const discarded = await api.git.discardPendingChanges();
     const candidatesBeforeMerge = await api.git.integrationCandidates();
     await api.git.switchBranch('main');
     await api.git.mergeBranch('work/mock');
@@ -117,11 +119,17 @@ describe('bridge mock fallback', () => {
     expect(exportResult?.format).toBe('json_bundle');
     expect(preview?.invalid).toBe(0);
     expect(branch.branch).toBe('work/mock');
+    expect(restore.source_hash).toBe('mock');
+    expect(discarded.reverted_files).toEqual([]);
+    expect(discarded.deleted_files).toEqual([]);
     expect(candidatesBeforeMerge).toContainEqual({ name: 'main', integrable: false });
     expect(candidatesAfterMerge).toContainEqual({ name: 'work/mock', integrable: false });
     expect(status.branch).toBe('main');
     expect(graph.current_branch).toBe('main');
     expect(graph.commits.some((commit) => commit.hash === checkpoint.id)).toBe(true);
+    expect(graph.commits.find((commit) => commit.hash === checkpoint.id)?.subject).toBe(
+      'Graph checkpoint',
+    );
     expect(external.opened).toBe(true);
   });
 

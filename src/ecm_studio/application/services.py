@@ -594,6 +594,12 @@ class GitAppService:
         rebuild = SQLiteProjection(workspace).rebuild()
         return rebuild.to_dict()
 
+    def discard_pending_changes(self) -> dict[str, Any]:
+        workspace = self.context.require_workspace()
+        result = GitService(workspace.root).discard_pending_changes()
+        result["rebuild"] = SQLiteProjection(workspace).rebuild().to_dict()
+        return result
+
     def list_branches(self) -> list[str]:
         return GitService(self.context.require_workspace().root).list_branches()
 

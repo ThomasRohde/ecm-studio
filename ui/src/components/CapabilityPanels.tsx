@@ -12,7 +12,12 @@ import {
   Text,
   Textarea,
 } from '@fluentui/react-components';
-import { ChevronDownRegular, ChevronRightRegular, DragRegular } from '@fluentui/react-icons';
+import {
+  ChevronDownRegular,
+  ChevronRightRegular,
+  DismissRegular,
+  DragRegular,
+} from '@fluentui/react-icons';
 import type { ItemInstance } from '@headless-tree/core';
 import {
   dragAndDropFeature,
@@ -37,9 +42,6 @@ import {
   fullyExpandedCapabilityItems,
   getCapabilityDropMoveRequest,
   getValidParentCandidates,
-  parentIdFromOptionValue,
-  parentOptionLabel,
-  parentOptionValue,
   ROOT_PARENT_OPTION_ID,
   reconcileExpandedCapabilityItems,
 } from './capability-tree-utils';
@@ -80,6 +82,7 @@ export function CapabilityTreePanel() {
   const [results, setResults] = useState<Capability[]>([]);
   const [expandedItems, setExpandedItems] = useState<string[]>([CAPABILITY_TREE_ROOT_ID]);
   const expansionInitializedFor = useRef<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   async function refresh(
     options: {
@@ -215,16 +218,34 @@ export function CapabilityTreePanel() {
     }
   }
 
+  function clearSearch() {
+    setQuery('');
+    setResults([]);
+    window.requestAnimationFrame(() => searchInputRef.current?.focus());
+  }
+
   const flat = useMemo(() => flattenCapabilities(tree), [tree]);
 
   return (
     <section className="panel stack capability-tree-panel">
       <div className="toolbar">
-        <Input
-          value={query}
-          onChange={(_, data) => void runSearch(data.value)}
-          placeholder="Search capabilities"
-        />
+        <div className="search-input-wrap">
+          <Input
+            ref={searchInputRef}
+            value={query}
+            onChange={(_, data) => void runSearch(data.value)}
+            placeholder="Search capabilities"
+          />
+          {query ? (
+            <Button
+              appearance="subtle"
+              aria-label="Clear capability search"
+              className="search-clear-button"
+              icon={<DismissRegular />}
+              onClick={clearSearch}
+            />
+          ) : null}
+        </div>
         <Button onClick={() => void refresh()}>Refresh</Button>
       </div>
       <div className="toolbar">
@@ -246,6 +267,7 @@ export function CapabilityTreePanel() {
               onClick={() => setSelected(capability)}
             >
               <span className="tree-name">{capability.name}</span>
+              <CapabilityBadges capability={capability} />
             </button>
           ))}
         </div>
@@ -398,17 +420,26 @@ function CapabilityTreeRow({ item }: { item: ItemInstance<CapabilityTreeItemData
         <DragRegular />
       </span>
       <span className="tree-name">{data.name}</span>
-      {data.capability?.lifecycle_status === 'Retired' ? (
-        <span className="capability-status-pill">Retired</span>
-      ) : null}
-      {data.capability?.replacement_capability_id ? (
-        <span className="capability-status-pill merged">Merged</span>
-      ) : null}
+      <CapabilityBadges capability={data.capability} />
     </div>
   );
 }
 
-export type StructuralDialog = 'retire' | 'merge' | 'delete' | null;
+function CapabilityBadges({ capability }: { capability: Capability | null }) {
+  if (!capability) return null;
+  return (
+    <span className="tree-badges">
+      <span className={`capability-status-pill ${capability.lifecycle_status.toLowerCase()}`}>
+        {capability.lifecycle_status}
+      </span>
+      {capability.replacement_capability_id ? (
+        <span className="capability-status-pill merged">Merged</span>
+      ) : null}
+    </span>
+  );
+}
+
+export type StructuralDialog = 'retire' | 'merge' | 'delete' | 'move' | null;
 
 export function InspectorPanel() {
   const selected = useAppStore((s) => s.selected);
@@ -422,6 +453,7 @@ export function InspectorPanel() {
   const [downstreamHandling, setDownstreamHandling] = useState('');
   const [replacementId, setReplacementId] = useState('');
   const [survivorId, setSurvivorId] = useState('');
+  const [moveTargetQuery, setMoveTargetQuery] = useState('');
   const visibleDraft = selected && draft?.id !== selected.id ? selected : draft;
 
   useEffect(() => setDraft(selected ? { ...selected } : null), [selected]);
@@ -474,6 +506,7 @@ export function InspectorPanel() {
     setDownstreamHandling('');
     setReplacementId('');
     setSurvivorId('');
+    setMoveTargetQuery('');
   }
 
   async function refreshAfterStructuralOperation(selectId: string | null) {
@@ -573,11 +606,63 @@ export function InspectorPanel() {
     }
   }
 
+  async function moveCapability(parentId: string | null) {
+    if (!visibleDraft) return;
+    try {
+      const moved = await api.capabilities.move(visibleDraft.id, parentId);
+      setStructuralDialog(null);
+      await refreshAfterStructuralOperation(moved.id);
+      notify.success({
+        intent: 'capability.moved',
+        title: 'Capability moved',
+        body: moved.name,
+        source: 'model',
+        dedupeKey: `capability.move.${moved.id}`,
+        action: { label: 'Open capability tree', panelId: 'tree' },
+      });
+    } catch (error) {
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not move capability',
+        body: errorMessage(error),
+        source: 'model',
+        dedupeKey: `capability.move.${visibleDraft.id}`,
+        action: { label: 'Open inspector', panelId: 'inspector' },
+      });
+    }
+  }
+
   const candidates = useMemo(
     () => getValidParentCandidates(tree, visibleDraft),
     [tree, visibleDraft?.id],
   );
   const flat = useMemo(() => flattenCapabilities(tree), [tree]);
+  const moveTargets = useMemo(
+    () => [
+      {
+        id: ROOT_PARENT_OPTION_ID,
+        parentId: null,
+        name: 'Top level',
+        path: 'Top level',
+        domain: '',
+      },
+      ...candidates.map((candidate) => ({
+        id: candidate.id,
+        parentId: candidate.id,
+        name: candidate.name,
+        path: capabilityPath(candidate, flat),
+        domain: candidate.domain,
+      })),
+    ],
+    [candidates, flat],
+  );
+  const filteredMoveTargets = useMemo(() => {
+    const query = moveTargetQuery.trim().toLowerCase();
+    if (!query) return moveTargets;
+    return moveTargets.filter((target) =>
+      `${target.name} ${target.path} ${target.domain}`.toLowerCase().includes(query),
+    );
+  }, [moveTargets, moveTargetQuery]);
   const replacementCandidates = useMemo(
     () => flat.filter((capability) => capability.id !== visibleDraft?.id),
     [flat, visibleDraft?.id],
@@ -643,6 +728,7 @@ export function InspectorPanel() {
         <label>
           Description
           <Textarea
+            className="description-textarea"
             value={visibleDraft.description}
             onChange={(_, d) => setDraft({ ...visibleDraft, description: d.value })}
           />
@@ -691,26 +777,6 @@ export function InspectorPanel() {
             onChange={(_, d) => setDraft({ ...visibleDraft, steward_department: d.value })}
           />
         </label>
-        <label>
-          Move under
-          <Dropdown
-            selectedOptions={[parentOptionValue(visibleDraft.parent_id)]}
-            value={parentOptionLabel(visibleDraft.parent_id, candidates)}
-            onOptionSelect={(_, d) =>
-              setDraft({
-                ...visibleDraft,
-                parent_id: parentIdFromOptionValue(d.optionValue),
-              })
-            }
-          >
-            <Option value={ROOT_PARENT_OPTION_ID}>Top level</Option>
-            {candidates.map((candidate) => (
-              <Option key={candidate.id} value={candidate.id}>
-                {candidate.name}
-              </Option>
-            ))}
-          </Dropdown>
-        </label>
         <div className="toolbar">
           <Button appearance="primary" onClick={() => void save()}>
             Save
@@ -732,6 +798,12 @@ export function InspectorPanel() {
               onClick={() => openStructuralDialog('merge')}
             >
               Merge
+            </Button>
+            <Button
+              disabled={moveTargets.length === 0}
+              onClick={() => openStructuralDialog('move')}
+            >
+              Move Under...
             </Button>
             <Button disabled={!canDelete} onClick={() => openStructuralDialog('delete')}>
               Delete Draft
@@ -783,31 +855,65 @@ export function InspectorPanel() {
                   </select>
                 </label>
               ) : null}
-              <label>
-                Rationale
-                <Textarea value={rationale} onChange={(_, data) => setRationale(data.value)} />
-              </label>
-              <label>
-                Downstream handling
-                <Textarea
-                  value={downstreamHandling}
-                  onChange={(_, data) => setDownstreamHandling(data.value)}
-                />
-              </label>
+              {structuralDialog === 'move' ? (
+                <div className="move-target-picker">
+                  <Input
+                    autoFocus
+                    value={moveTargetQuery}
+                    onChange={(_, data) => setMoveTargetQuery(data.value)}
+                    placeholder="Search target by name, path, or domain"
+                  />
+                  <div className="move-target-list">
+                    {filteredMoveTargets.map((target) => (
+                      <button
+                        className={`move-target-row ${
+                          target.parentId === visibleDraft.parent_id ? 'current' : ''
+                        }`}
+                        key={target.id}
+                        onClick={() => void moveCapability(target.parentId)}
+                        type="button"
+                      >
+                        <span className="move-target-name">{target.name}</span>
+                        <span className="move-target-path">{target.path}</span>
+                      </button>
+                    ))}
+                    {filteredMoveTargets.length === 0 ? (
+                      <Text size={200}>No matching parent targets.</Text>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+              {structuralDialog !== 'move' ? (
+                <>
+                  <label>
+                    Rationale
+                    <Textarea value={rationale} onChange={(_, data) => setRationale(data.value)} />
+                  </label>
+                  <label>
+                    Downstream handling
+                    <Textarea
+                      value={downstreamHandling}
+                      onChange={(_, data) => setDownstreamHandling(data.value)}
+                    />
+                  </label>
+                </>
+              ) : null}
             </DialogContent>
             <DialogActions>
               <Button onClick={() => setStructuralDialog(null)}>Cancel</Button>
-              <Button
-                appearance="primary"
-                disabled={!canRunStructuralDialog(structuralDialog, rationale, survivorId)}
-                onClick={() => {
-                  if (structuralDialog === 'retire') void retireCapability();
-                  if (structuralDialog === 'delete') void deleteCapability();
-                  if (structuralDialog === 'merge') void mergeCapability();
-                }}
-              >
-                {structuralDialogAction(structuralDialog)}
-              </Button>
+              {structuralDialog !== 'move' ? (
+                <Button
+                  appearance="primary"
+                  disabled={!canRunStructuralDialog(structuralDialog, rationale, survivorId)}
+                  onClick={() => {
+                    if (structuralDialog === 'retire') void retireCapability();
+                    if (structuralDialog === 'delete') void deleteCapability();
+                    if (structuralDialog === 'merge') void mergeCapability();
+                  }}
+                >
+                  {structuralDialogAction(structuralDialog)}
+                </Button>
+              ) : null}
             </DialogActions>
           </DialogBody>
         </DialogSurface>
@@ -820,6 +926,7 @@ function structuralDialogTitle(dialog: StructuralDialog): string {
   if (dialog === 'retire') return 'Retire Capability';
   if (dialog === 'merge') return 'Merge Capability';
   if (dialog === 'delete') return 'Delete Draft Capability';
+  if (dialog === 'move') return 'Move Capability';
   return 'Structural Operation';
 }
 
@@ -827,6 +934,7 @@ function structuralDialogAction(dialog: StructuralDialog): string {
   if (dialog === 'retire') return 'Retire';
   if (dialog === 'merge') return 'Merge';
   if (dialog === 'delete') return 'Delete';
+  if (dialog === 'move') return 'Move';
   return 'Apply';
 }
 
@@ -835,7 +943,22 @@ export function canRunStructuralDialog(
   rationale: string,
   survivorId: string,
 ): boolean {
-  if (!dialog || !rationale.trim()) return false;
+  if (!dialog) return false;
+  if (dialog === 'move') return true;
+  if (!rationale.trim()) return false;
   if (dialog === 'merge') return Boolean(survivorId);
   return true;
+}
+
+function capabilityPath(capability: Capability, flat: Capability[]): string {
+  const byId = new Map(flat.map((item) => [item.id, item]));
+  const names = [capability.name];
+  const seen = new Set<string>([capability.id]);
+  let parent = capability.parent_id ? byId.get(capability.parent_id) : null;
+  while (parent && !seen.has(parent.id)) {
+    names.unshift(parent.name);
+    seen.add(parent.id);
+    parent = parent.parent_id ? byId.get(parent.parent_id) : null;
+  }
+  return names.join(' / ');
 }

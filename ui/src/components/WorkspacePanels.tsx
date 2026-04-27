@@ -1,12 +1,15 @@
-import { Button, Input, Text } from '@fluentui/react-components';
 import {
-  Gitgraph,
-  MergeStyle,
-  Mode,
-  Orientation,
-  TemplateName,
-  templateExtend,
-} from '@gitgraph/react';
+  Button,
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogContent,
+  DialogSurface,
+  DialogTitle,
+  Input,
+  Text,
+} from '@fluentui/react-components';
+import { Gitgraph, MergeStyle, Orientation, TemplateName, templateExtend } from '@gitgraph/react';
 import type { MouseEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { api } from '../api/bridge';
@@ -14,6 +17,7 @@ import type {
   AuditEvent,
   BranchIntegrationCandidate,
   CapabilityMapColorScheme,
+  Checkpoint,
   GitGraphData,
   GitStatus,
   ImportMode,
@@ -619,6 +623,8 @@ export function GitPanel() {
   const [contextBranch, setContextBranch] = useState('');
   const [integrationBranch, setIntegrationBranch] = useState('');
   const [releaseVersion, setReleaseVersion] = useState('0.1.0');
+  const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const [restoreCheckpointTarget, setRestoreCheckpointTarget] = useState<Checkpoint | null>(null);
 
   async function refresh() {
     try {
@@ -645,6 +651,8 @@ export function GitPanel() {
         | 'git.pull.completed'
         | 'git.merge.completed'
         | 'git.merge.aborted'
+        | 'git.restore.completed'
+        | 'git.discard.completed'
         | 'release.cut'
         | 'release.published';
       title: string;
@@ -696,6 +704,42 @@ export function GitPanel() {
       'Could not create checkpoint',
       gitBlockingTaskOptions('checkpoint', `Branch: ${branch}`),
     );
+  }
+
+  async function restoreCheckpoint(checkpointToRestore: Checkpoint) {
+    const branch = gitStatus?.branch ?? 'current';
+    await runGitOperation(
+      () => api.git.restore(checkpointToRestore.id, false),
+      {
+        intent: 'git.restore.completed',
+        title: 'Checkpoint reverted',
+        body: `${checkpointToRestore.message} (${checkpointToRestore.id.slice(0, 10)})`,
+        dedupeKey: `git.restore.${checkpointToRestore.id}`,
+      },
+      'Could not revert checkpoint',
+      gitBlockingTaskOptions(
+        'restoreCheckpoint',
+        `Branch: ${branch}\nCheckpoint: ${checkpointToRestore.id.slice(0, 10)}`,
+      ),
+    );
+    setRestoreCheckpointTarget(null);
+  }
+
+  async function discardPendingChanges() {
+    const branch = gitStatus?.branch ?? 'current';
+    await runGitOperation(
+      () => api.git.discardPendingChanges(),
+      {
+        intent: 'git.discard.completed',
+        title: 'Pending changes discarded',
+        body: (result) =>
+          `${result.reverted_files.length} reverted, ${result.deleted_files.length} deleted.`,
+        dedupeKey: `git.discard.${branch}`,
+      },
+      'Could not discard pending changes',
+      gitBlockingTaskOptions('discardPendingChanges', `Branch: ${branch}`),
+    );
+    setDiscardDialogOpen(false);
   }
 
   async function createBranch() {
@@ -847,6 +891,10 @@ export function GitPanel() {
     .map((candidate) => candidate.name);
   const pendingCount =
     (gitStatus?.changed_files?.length ?? 0) + (gitStatus?.untracked_files?.length ?? 0);
+  const pendingFiles = [
+    ...(gitStatus?.changed_files ?? []).map((path) => ({ path, kind: 'Tracked' })),
+    ...(gitStatus?.untracked_files ?? []).map((path) => ({ path, kind: 'Untracked' })),
+  ];
   const releaseTag = releaseTagForVersion(releaseVersion);
   const canCut = canCutRelease(releaseStatus, gitStatus, releaseVersion);
   const canPublish = canPublishRelease(releaseStatus, gitStatus);
@@ -891,13 +939,21 @@ export function GitPanel() {
             onChange={(_, d) => setMessage(d.value)}
             aria-label="Checkpoint message"
           />
-          <Button
-            disabled={!isRepo || mergeInProgress}
-            appearance="primary"
-            onClick={() => void checkpoint()}
-          >
-            Create Checkpoint
-          </Button>
+          <div className="toolbar">
+            <Button
+              disabled={!isRepo || mergeInProgress}
+              appearance="primary"
+              onClick={() => void checkpoint()}
+            >
+              Create Checkpoint
+            </Button>
+            <Button
+              disabled={!isRepo || mergeInProgress || pendingFiles.length === 0}
+              onClick={() => setDiscardDialogOpen(true)}
+            >
+              Discard Pending Changes
+            </Button>
+          </div>
         </div>
 
         <div className="card workflow-card">
@@ -1022,16 +1078,82 @@ export function GitPanel() {
         </summary>
         <div className="list">
           {history.map((item) => (
-            <div key={item.id || item.message} className="card">
-              <Text weight="semibold">{item.message}</Text>
-              <Text size={200}>
-                {item.id.slice(0, 10)} {item.timestamp}
-              </Text>
+            <div key={item.id || item.message} className="card checkpoint-card">
+              <div className="checkpoint-card-main">
+                <Text weight="semibold">{item.message}</Text>
+                <Text size={200}>
+                  {item.id.slice(0, 10)} {item.timestamp}
+                </Text>
+              </div>
+              <Button disabled={!item.id} onClick={() => setRestoreCheckpointTarget(item)}>
+                Revert
+              </Button>
             </div>
           ))}
           {history.length === 0 ? <Text size={200}>No checkpoints yet.</Text> : null}
         </div>
       </details>
+      <Dialog open={discardDialogOpen} onOpenChange={(_, data) => setDiscardDialogOpen(data.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Discard Pending Changes</DialogTitle>
+            <DialogContent className="confirmation-dialog-content">
+              <Text>
+                This will revert tracked files and delete untracked files from the workspace.
+              </Text>
+              <PendingFileList files={pendingFiles} />
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setDiscardDialogOpen(false)}>Cancel</Button>
+              <Button
+                appearance="primary"
+                disabled={pendingFiles.length === 0}
+                onClick={() => void discardPendingChanges()}
+              >
+                Discard Changes
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+      <Dialog
+        open={restoreCheckpointTarget !== null}
+        onOpenChange={(_, data) => {
+          if (!data.open) setRestoreCheckpointTarget(null);
+        }}
+      >
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Revert Checkpoint</DialogTitle>
+            <DialogContent className="confirmation-dialog-content">
+              <Text>
+                This will restore ECM model files from the selected checkpoint. Pending changes must
+                be discarded or checkpointed first.
+              </Text>
+              {restoreCheckpointTarget ? (
+                <div className="checkpoint-confirmation">
+                  <Text weight="semibold">{restoreCheckpointTarget.message}</Text>
+                  <Text size={200}>
+                    {restoreCheckpointTarget.id.slice(0, 10)} {restoreCheckpointTarget.timestamp}
+                  </Text>
+                </div>
+              ) : null}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setRestoreCheckpointTarget(null)}>Cancel</Button>
+              <Button
+                appearance="primary"
+                disabled={!restoreCheckpointTarget?.id}
+                onClick={() => {
+                  if (restoreCheckpointTarget) void restoreCheckpoint(restoreCheckpointTarget);
+                }}
+              >
+                Revert
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     </section>
   );
 }
@@ -1083,6 +1205,20 @@ function ReleaseBlockers({ blockers, title }: { blockers: ReleaseBlocker[]; titl
         </Text>
       ))}
     </div>
+  );
+}
+
+function PendingFileList({ files }: { files: { path: string; kind: string }[] }) {
+  if (files.length === 0) return <Text size={200}>No pending file changes.</Text>;
+  return (
+    <ul className="pending-file-list">
+      {files.map((file) => (
+        <li key={`${file.kind}-${file.path}`}>
+          <span>{file.kind}</span>
+          <code>{file.path}</code>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -1140,7 +1276,6 @@ function GitGraphView({ graph }: { graph: GitGraphData | null }) {
           <Gitgraph
             key={graphKey}
             options={{
-              mode: Mode.Compact,
               orientation: Orientation.VerticalReverse,
               template: gitGraphTemplate,
             }}

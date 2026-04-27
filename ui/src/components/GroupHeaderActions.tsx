@@ -1,3 +1,4 @@
+import { FullScreenMinimizeRegular, MaximizeRegular } from '@fluentui/react-icons';
 import type { IDockviewHeaderActionsProps } from 'dockview';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -31,7 +32,7 @@ export function GroupHeaderActions({ api, containerApi }: IDockviewHeaderActions
         title={isMaximized ? 'Restore view' : 'Maximize view'}
         type="button"
       >
-        <span className={isMaximized ? 'restore-glyph' : 'maximize-glyph'} />
+        {isMaximized ? <FullScreenMinimizeRegular /> : <MaximizeRegular />}
       </button>
     </div>
   );

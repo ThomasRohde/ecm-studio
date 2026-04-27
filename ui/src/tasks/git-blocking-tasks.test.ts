@@ -9,6 +9,8 @@ describe('git blocking task metadata', () => {
     ['pull', 'Receiving updates'],
     ['mergeBranch', 'Integrating scenario'],
     ['abortMerge', 'Aborting integration'],
+    ['restoreCheckpoint', 'Reverting checkpoint'],
+    ['discardPendingChanges', 'Discarding pending changes'],
     ['cutRelease', 'Cutting release'],
     ['publishRelease', 'Publishing release'],
   ])('maps %s to the expected dialog title', (name, title) => {

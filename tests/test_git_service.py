@@ -37,6 +37,29 @@ def test_git_checkpoint_history_compare_and_restore(tmp_path: Path) -> None:
     assert capabilities.read_text(encoding="utf-8") == ""
 
 
+def test_git_discard_pending_changes_reverts_tracked_and_deletes_untracked(tmp_path: Path) -> None:
+    workspace = WorkspaceRepository(tmp_path)
+    workspace.init("Discard")
+    git = GitService(tmp_path)
+    git.init()
+    git.checkpoint("Initial")
+
+    capabilities = tmp_path / "ecm" / "capabilities.jsonl"
+    capabilities.write_text("dirty\n", encoding="utf-8")
+    untracked = tmp_path / "notes.txt"
+    untracked.write_text("scratch\n", encoding="utf-8")
+
+    result = git.discard_pending_changes()
+
+    assert "ecm/capabilities.jsonl" in {
+        path.replace("\\", "/") for path in result["reverted_files"]
+    }
+    assert result["deleted_files"] == ["notes.txt"]
+    assert capabilities.read_text(encoding="utf-8") == ""
+    assert not untracked.exists()
+    assert git.status()["clean"] is True
+
+
 def test_git_service_initializes_nested_workspace_inside_parent_repo(tmp_path: Path) -> None:
     parent = tmp_path / "parent"
     parent.mkdir()
@@ -97,6 +120,10 @@ def test_git_merge_conflict_detection_and_abort(tmp_path: Path) -> None:
         git.merge_branch("work/conflict")
     assert exc.value.code == "GIT_CONFLICT"
     assert git.status()["merge_in_progress"] is True
+
+    with pytest.raises(AppError) as discard_exc:
+        git.discard_pending_changes()
+    assert discard_exc.value.code == "GIT_DISCARD_BLOCKED"
 
     aborted = git.abort_merge()
 

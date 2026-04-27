@@ -7,6 +7,8 @@ export type GitBlockingTaskName =
   | 'pull'
   | 'mergeBranch'
   | 'abortMerge'
+  | 'restoreCheckpoint'
+  | 'discardPendingChanges'
   | 'cutRelease'
   | 'publishRelease';
 
@@ -64,6 +66,18 @@ const TASKS: Record<GitBlockingTaskName, Omit<BlockingTaskOptions, 'details'>> =
   abortMerge: {
     title: 'Aborting integration',
     message: 'Clearing the current merge state.',
+    kind: 'git',
+    steps: GENERIC_GIT_STEPS,
+  },
+  restoreCheckpoint: {
+    title: 'Reverting checkpoint',
+    message: 'Restoring model files from the selected checkpoint.',
+    kind: 'git',
+    steps: GENERIC_GIT_STEPS,
+  },
+  discardPendingChanges: {
+    title: 'Discarding pending changes',
+    message: 'Reverting tracked files and deleting untracked files.',
     kind: 'git',
     steps: GENERIC_GIT_STEPS,
   },

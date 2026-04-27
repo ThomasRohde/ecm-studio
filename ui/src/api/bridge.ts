@@ -15,6 +15,7 @@ import type {
   Diagnostic,
   Envelope,
   ExportResult,
+  GitDiscardResult,
   GitGraphCommit,
   GitGraphData,
   GitStatus,
@@ -538,6 +539,29 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
     return { pushed: true, remote: 'origin', branch: mockState.git.branch } as T;
   if (method === 'git_history') return mockState.checkpoints as T;
   if (method === 'git_graph') return mockGitGraph(Number(args[0] || 50)) as T;
+  if (method === 'git_restore') {
+    const checkpointId = String(args[0] || '');
+    if (!mockState.checkpoints.some((checkpoint) => checkpoint.id === checkpointId)) {
+      throw new Error(`GIT_FAILED: Checkpoint "${checkpointId}" was not found.`);
+    }
+    return { capability_count: mockState.capabilities.length, source_hash: 'mock' } as T;
+  }
+  if (method === 'git_discard_pending_changes') {
+    if (mockState.git.merge_in_progress || mockState.git.conflicted_files.length > 0) {
+      throw new Error(
+        'GIT_DISCARD_BLOCKED: Resolve or abort the current integration before discarding pending changes.',
+      );
+    }
+    const result = {
+      reverted_files: [...mockState.git.changed_files],
+      deleted_files: [...mockState.git.untracked_files],
+      rebuild: { capability_count: mockState.capabilities.length, source_hash: 'mock' },
+    };
+    mockState.git.changed_files = [];
+    mockState.git.untracked_files = [];
+    mockState.git.clean = true;
+    return result as T;
+  }
   if (method === 'git_checkpoint') {
     const checkpoint = {
       id: crypto.randomUUID(),
@@ -965,6 +989,9 @@ export const api = {
     history: (limit = 50) => call<Checkpoint[]>('git_history', limit),
     graph: (limit = 50) => call<GitGraphData>('git_graph', limit),
     compare: (from: string, to: string) => call<unknown>('git_compare', from, to),
+    restore: (checkpointId: string, force = false) =>
+      call<{ capability_count: number; source_hash: string }>('git_restore', checkpointId, force),
+    discardPendingChanges: () => call<GitDiscardResult>('git_discard_pending_changes'),
     listBranches: () => call<string[]>('git_list_branches'),
     integrationCandidates: () => call<BranchIntegrationCandidate[]>('git_integration_candidates'),
     createBranch: (name: string) =>

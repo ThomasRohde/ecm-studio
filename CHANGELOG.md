@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.0] - 2026-04-27
+
+- Improve large-model capability moves with a searchable Structural Actions
+  target picker.
+- Add capability tree search clearing and right-aligned lifecycle/merged badges.
+- Add checkpoint revert and pending file discard workflows with confirmation.
+- Show checkpoint labels in the Git graph.
+- Package and apply the ECM Studio Windows icon, including Start Menu shortcut
+  repair for taskbar pins.
+- Polish the view maximize control alignment.
+
 ## [0.4.0] - 2026-04-27
 
 - Add direct structural operations for retiring, merging, and controlled Draft

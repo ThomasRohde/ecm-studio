@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 from collections.abc import Iterable
@@ -262,8 +263,44 @@ class GitService:
             raise AppError(
                 "GIT_WORKTREE_DIRTY",
                 "Working tree has uncommitted changes. Create a checkpoint before restoring.",
-            )
+        )
         self._git("checkout", checkpoint_id, "--", "ecm-studio.json", "ecm")
+
+    def discard_pending_changes(self) -> dict[str, list[str]]:
+        self._require_repo()
+        status = self.status()
+        if status["merge_in_progress"] or status["conflicted_files"]:
+            raise AppError(
+                "GIT_DISCARD_BLOCKED",
+                "Resolve or abort the current integration before discarding pending changes.",
+            )
+
+        changed_files = list(dict.fromkeys(status["changed_files"]))
+        untracked_files = list(dict.fromkeys(status["untracked_files"]))
+
+        if changed_files:
+            self._git("restore", "--staged", "--worktree", "--", *changed_files)
+
+        deleted_files: list[str] = []
+        for relative_path in untracked_files:
+            target = (self.repo_path / relative_path).resolve()
+            try:
+                target.relative_to(self.repo_path)
+            except ValueError as exc:
+                raise AppError(
+                    "GIT_DISCARD_FAILED",
+                    "Refusing to delete a pending file outside the workspace.",
+                    {"path": relative_path},
+                ) from exc
+            if not target.exists():
+                continue
+            if target.is_dir():
+                shutil.rmtree(target)
+            else:
+                target.unlink()
+            deleted_files.append(relative_path)
+
+        return {"reverted_files": changed_files, "deleted_files": deleted_files}
 
     def create_branch(self, name: str, switch: bool = True) -> dict:
         self._require_repo()
