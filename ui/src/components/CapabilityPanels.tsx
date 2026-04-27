@@ -1,4 +1,17 @@
-import { Button, Dropdown, Input, Option, Text, Textarea } from '@fluentui/react-components';
+import {
+  Button,
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogContent,
+  DialogSurface,
+  DialogTitle,
+  Dropdown,
+  Input,
+  Option,
+  Text,
+  Textarea,
+} from '@fluentui/react-components';
 import { ChevronDownRegular, ChevronRightRegular, DragRegular } from '@fluentui/react-icons';
 import type { ItemInstance } from '@headless-tree/core';
 import {
@@ -14,6 +27,7 @@ import { api } from '../api/bridge';
 import type { Capability, CapabilityPatch } from '../api/types';
 import { errorMessage, notify } from '../notifications/notify';
 import { useAppStore } from '../store/app-store';
+import { refreshWorkspaceViews } from '../workspace/workspace-refresh';
 import type { CapabilityMoveRequest, CapabilityTreeItemData } from './capability-tree-utils';
 import {
   buildCapabilityTreeItems,
@@ -44,6 +58,7 @@ function capabilityPatch(draft: Capability): CapabilityPatch {
     tags: draft.tags,
     steward_id: draft.steward_id,
     steward_department: draft.steward_department,
+    replacement_capability_id: draft.replacement_capability_id,
   };
 }
 
@@ -383,9 +398,17 @@ function CapabilityTreeRow({ item }: { item: ItemInstance<CapabilityTreeItemData
         <DragRegular />
       </span>
       <span className="tree-name">{data.name}</span>
+      {data.capability?.lifecycle_status === 'Retired' ? (
+        <span className="capability-status-pill">Retired</span>
+      ) : null}
+      {data.capability?.replacement_capability_id ? (
+        <span className="capability-status-pill merged">Merged</span>
+      ) : null}
     </div>
   );
 }
+
+export type StructuralDialog = 'retire' | 'merge' | 'delete' | null;
 
 export function InspectorPanel() {
   const selected = useAppStore((s) => s.selected);
@@ -394,6 +417,11 @@ export function InspectorPanel() {
   const setTree = useAppStore((s) => s.setTree);
   const setError = useAppStore((s) => s.setError);
   const [draft, setDraft] = useState<Capability | null>(selected);
+  const [structuralDialog, setStructuralDialog] = useState<StructuralDialog>(null);
+  const [rationale, setRationale] = useState('');
+  const [downstreamHandling, setDownstreamHandling] = useState('');
+  const [replacementId, setReplacementId] = useState('');
+  const [survivorId, setSurvivorId] = useState('');
   const visibleDraft = selected && draft?.id !== selected.id ? selected : draft;
 
   useEffect(() => setDraft(selected ? { ...selected } : null), [selected]);
@@ -440,10 +468,126 @@ export function InspectorPanel() {
     }
   }
 
+  function openStructuralDialog(dialog: StructuralDialog) {
+    setStructuralDialog(dialog);
+    setRationale('');
+    setDownstreamHandling('');
+    setReplacementId('');
+    setSurvivorId('');
+  }
+
+  async function refreshAfterStructuralOperation(selectId: string | null) {
+    const snapshot = await refreshWorkspaceViews();
+    const match = selectId
+      ? (flattenCapabilities(snapshot.tree).find((capability) => capability.id === selectId) ??
+        null)
+      : null;
+    setSelected(match);
+  }
+
+  async function retireCapability() {
+    if (!visibleDraft) return;
+    try {
+      const retired = await api.capabilities.retire(visibleDraft.id, {
+        rationale,
+        downstream_handling: downstreamHandling,
+        replacement_capability_id: replacementId || null,
+      });
+      setStructuralDialog(null);
+      await refreshAfterStructuralOperation(retired.id);
+      notify.success({
+        intent: 'capability.updated',
+        title: 'Capability retired',
+        body: retired.name,
+        source: 'model',
+        dedupeKey: `capability.retire.${retired.id}`,
+        action: { label: 'Open inspector', panelId: 'inspector' },
+      });
+    } catch (error) {
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not retire capability',
+        body: errorMessage(error),
+        source: 'model',
+        dedupeKey: `capability.retire.${visibleDraft.id}`,
+        action: { label: 'Open inspector', panelId: 'inspector' },
+      });
+    }
+  }
+
+  async function deleteCapability() {
+    if (!visibleDraft) return;
+    try {
+      const deleted = await api.capabilities.delete(visibleDraft.id, {
+        rationale,
+        downstream_handling: downstreamHandling,
+      });
+      setStructuralDialog(null);
+      await refreshAfterStructuralOperation(null);
+      notify.success({
+        intent: 'capability.updated',
+        title: 'Capability deleted',
+        body: deleted.deleted_name,
+        source: 'model',
+        dedupeKey: `capability.delete.${deleted.deleted_id}`,
+        action: { label: 'Open capability tree', panelId: 'tree' },
+      });
+    } catch (error) {
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not delete capability',
+        body: errorMessage(error),
+        source: 'model',
+        dedupeKey: `capability.delete.${visibleDraft.id}`,
+        action: { label: 'Open inspector', panelId: 'inspector' },
+      });
+    }
+  }
+
+  async function mergeCapability() {
+    if (!visibleDraft || !survivorId) return;
+    try {
+      const result = await api.capabilities.merge(visibleDraft.id, survivorId, {
+        rationale,
+        downstream_handling: downstreamHandling,
+      });
+      setStructuralDialog(null);
+      await refreshAfterStructuralOperation(result.survivor.id);
+      notify.success({
+        intent: 'capability.updated',
+        title: 'Capabilities merged',
+        body: `${visibleDraft.name} -> ${result.survivor.name}`,
+        source: 'model',
+        dedupeKey: `capability.merge.${visibleDraft.id}.${result.survivor.id}`,
+        action: { label: 'Open inspector', panelId: 'inspector' },
+      });
+    } catch (error) {
+      notify.error({
+        intent: 'operation.failed',
+        title: 'Could not merge capability',
+        body: errorMessage(error),
+        source: 'model',
+        dedupeKey: `capability.merge.${visibleDraft.id}.${survivorId}`,
+        action: { label: 'Open inspector', panelId: 'inspector' },
+      });
+    }
+  }
+
   const candidates = useMemo(
     () => getValidParentCandidates(tree, visibleDraft),
     [tree, visibleDraft?.id],
   );
+  const flat = useMemo(() => flattenCapabilities(tree), [tree]);
+  const replacementCandidates = useMemo(
+    () => flat.filter((capability) => capability.id !== visibleDraft?.id),
+    [flat, visibleDraft?.id],
+  );
+  const mergeCandidates = candidates;
+  const canDelete =
+    visibleDraft?.lifecycle_status === 'Draft' && (visibleDraft.children ?? []).length === 0;
+  const replacementLabel =
+    visibleDraft?.replacement_capability_id &&
+    flat.find((capability) => capability.id === visibleDraft.replacement_capability_id)?.name;
 
   if (!visibleDraft)
     return (
@@ -453,116 +597,245 @@ export function InspectorPanel() {
     );
 
   return (
-    <section className="panel stack inspector">
-      <Text weight="semibold">Capability Inspector</Text>
-      <label>
-        Name
-        <Input
-          value={visibleDraft.name}
-          onChange={(_, d) => setDraft({ ...visibleDraft, name: d.value })}
-        />
-      </label>
-      <label>
-        Domain
-        <Input
-          value={visibleDraft.domain}
-          onChange={(_, d) => setDraft({ ...visibleDraft, domain: d.value })}
-        />
-      </label>
-      <label>
-        Status
-        <Dropdown
-          selectedOptions={[visibleDraft.lifecycle_status]}
-          value={visibleDraft.lifecycle_status}
-          onOptionSelect={(_, d) =>
-            setDraft({
-              ...visibleDraft,
-              lifecycle_status: d.optionValue as Capability['lifecycle_status'],
-            })
-          }
-        >
-          <Option value="Draft">Draft</Option>
-          <Option value="Active">Active</Option>
-          <Option value="Deprecated">Deprecated</Option>
-          <Option value="Retired">Retired</Option>
-        </Dropdown>
-      </label>
-      <label>
-        Description
-        <Textarea
-          value={visibleDraft.description}
-          onChange={(_, d) => setDraft({ ...visibleDraft, description: d.value })}
-        />
-      </label>
-      <label>
-        Aliases
-        <Input
-          value={visibleDraft.aliases.join('; ')}
-          onChange={(_, d) =>
-            setDraft({
-              ...visibleDraft,
-              aliases: d.value
-                .split(';')
-                .map((v) => v.trim())
-                .filter(Boolean),
-            })
-          }
-        />
-      </label>
-      <label>
-        Tags
-        <Input
-          value={visibleDraft.tags.join('; ')}
-          onChange={(_, d) =>
-            setDraft({
-              ...visibleDraft,
-              tags: d.value
-                .split(';')
-                .map((v) => v.trim())
-                .filter(Boolean),
-            })
-          }
-        />
-      </label>
-      <label>
-        Steward
-        <Input
-          value={visibleDraft.steward_id}
-          onChange={(_, d) => setDraft({ ...visibleDraft, steward_id: d.value })}
-        />
-      </label>
-      <label>
-        Steward Department
-        <Input
-          value={visibleDraft.steward_department}
-          onChange={(_, d) => setDraft({ ...visibleDraft, steward_department: d.value })}
-        />
-      </label>
-      <label>
-        Move under
-        <Dropdown
-          selectedOptions={[parentOptionValue(visibleDraft.parent_id)]}
-          value={parentOptionLabel(visibleDraft.parent_id, candidates)}
-          onOptionSelect={(_, d) =>
-            setDraft({
-              ...visibleDraft,
-              parent_id: parentIdFromOptionValue(d.optionValue),
-            })
-          }
-        >
-          <Option value={ROOT_PARENT_OPTION_ID}>Top level</Option>
-          {candidates.map((candidate) => (
-            <Option key={candidate.id} value={candidate.id}>
-              {candidate.name}
-            </Option>
-          ))}
-        </Dropdown>
-      </label>
-      <div className="toolbar">
-        <Button appearance="primary" onClick={() => void save()}>
-          Save
-        </Button>
-      </div>
-    </section>
+    <>
+      <section className="panel stack inspector">
+        <Text weight="semibold">Capability Inspector</Text>
+        {visibleDraft.lifecycle_status === 'Retired' || visibleDraft.replacement_capability_id ? (
+          <div className="structural-state-banner">
+            <Text weight="semibold">
+              {visibleDraft.replacement_capability_id ? 'Merged / Retired' : 'Retired'}
+            </Text>
+            {replacementLabel ? <Text size={200}>Replacement: {replacementLabel}</Text> : null}
+          </div>
+        ) : null}
+        <label>
+          Name
+          <Input
+            value={visibleDraft.name}
+            onChange={(_, d) => setDraft({ ...visibleDraft, name: d.value })}
+          />
+        </label>
+        <label>
+          Domain
+          <Input
+            value={visibleDraft.domain}
+            onChange={(_, d) => setDraft({ ...visibleDraft, domain: d.value })}
+          />
+        </label>
+        <label>
+          Status
+          <Dropdown
+            selectedOptions={[visibleDraft.lifecycle_status]}
+            value={visibleDraft.lifecycle_status}
+            onOptionSelect={(_, d) =>
+              setDraft({
+                ...visibleDraft,
+                lifecycle_status: d.optionValue as Capability['lifecycle_status'],
+              })
+            }
+          >
+            <Option value="Draft">Draft</Option>
+            <Option value="Active">Active</Option>
+            <Option value="Deprecated">Deprecated</Option>
+            <Option value="Retired">Retired</Option>
+          </Dropdown>
+        </label>
+        <label>
+          Description
+          <Textarea
+            value={visibleDraft.description}
+            onChange={(_, d) => setDraft({ ...visibleDraft, description: d.value })}
+          />
+        </label>
+        <label>
+          Aliases
+          <Input
+            value={visibleDraft.aliases.join('; ')}
+            onChange={(_, d) =>
+              setDraft({
+                ...visibleDraft,
+                aliases: d.value
+                  .split(';')
+                  .map((v) => v.trim())
+                  .filter(Boolean),
+              })
+            }
+          />
+        </label>
+        <label>
+          Tags
+          <Input
+            value={visibleDraft.tags.join('; ')}
+            onChange={(_, d) =>
+              setDraft({
+                ...visibleDraft,
+                tags: d.value
+                  .split(';')
+                  .map((v) => v.trim())
+                  .filter(Boolean),
+              })
+            }
+          />
+        </label>
+        <label>
+          Steward
+          <Input
+            value={visibleDraft.steward_id}
+            onChange={(_, d) => setDraft({ ...visibleDraft, steward_id: d.value })}
+          />
+        </label>
+        <label>
+          Steward Department
+          <Input
+            value={visibleDraft.steward_department}
+            onChange={(_, d) => setDraft({ ...visibleDraft, steward_department: d.value })}
+          />
+        </label>
+        <label>
+          Move under
+          <Dropdown
+            selectedOptions={[parentOptionValue(visibleDraft.parent_id)]}
+            value={parentOptionLabel(visibleDraft.parent_id, candidates)}
+            onOptionSelect={(_, d) =>
+              setDraft({
+                ...visibleDraft,
+                parent_id: parentIdFromOptionValue(d.optionValue),
+              })
+            }
+          >
+            <Option value={ROOT_PARENT_OPTION_ID}>Top level</Option>
+            {candidates.map((candidate) => (
+              <Option key={candidate.id} value={candidate.id}>
+                {candidate.name}
+              </Option>
+            ))}
+          </Dropdown>
+        </label>
+        <div className="toolbar">
+          <Button appearance="primary" onClick={() => void save()}>
+            Save
+          </Button>
+        </div>
+        <div className="structural-actions">
+          <Text size={200} weight="semibold">
+            Structural Actions
+          </Text>
+          <div className="toolbar">
+            <Button
+              disabled={visibleDraft.lifecycle_status === 'Retired'}
+              onClick={() => openStructuralDialog('retire')}
+            >
+              Retire
+            </Button>
+            <Button
+              disabled={mergeCandidates.length === 0}
+              onClick={() => openStructuralDialog('merge')}
+            >
+              Merge
+            </Button>
+            <Button disabled={!canDelete} onClick={() => openStructuralDialog('delete')}>
+              Delete Draft
+            </Button>
+          </div>
+        </div>
+      </section>
+      <Dialog
+        open={structuralDialog !== null}
+        onOpenChange={(_, data) => {
+          if (!data.open) setStructuralDialog(null);
+        }}
+      >
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>{structuralDialogTitle(structuralDialog)}</DialogTitle>
+            <DialogContent className="structural-dialog-content">
+              {structuralDialog === 'retire' ? (
+                <label>
+                  Replacement
+                  <select
+                    className="select"
+                    value={replacementId}
+                    onChange={(event) => setReplacementId(event.target.value)}
+                  >
+                    <option value="">No replacement</option>
+                    {replacementCandidates.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>
+                        {candidate.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {structuralDialog === 'merge' ? (
+                <label>
+                  Survivor
+                  <select
+                    className="select"
+                    value={survivorId}
+                    onChange={(event) => setSurvivorId(event.target.value)}
+                  >
+                    <option value="">Select survivor</option>
+                    {mergeCandidates.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>
+                        {candidate.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <label>
+                Rationale
+                <Textarea value={rationale} onChange={(_, data) => setRationale(data.value)} />
+              </label>
+              <label>
+                Downstream handling
+                <Textarea
+                  value={downstreamHandling}
+                  onChange={(_, data) => setDownstreamHandling(data.value)}
+                />
+              </label>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setStructuralDialog(null)}>Cancel</Button>
+              <Button
+                appearance="primary"
+                disabled={!canRunStructuralDialog(structuralDialog, rationale, survivorId)}
+                onClick={() => {
+                  if (structuralDialog === 'retire') void retireCapability();
+                  if (structuralDialog === 'delete') void deleteCapability();
+                  if (structuralDialog === 'merge') void mergeCapability();
+                }}
+              >
+                {structuralDialogAction(structuralDialog)}
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+    </>
   );
+}
+
+function structuralDialogTitle(dialog: StructuralDialog): string {
+  if (dialog === 'retire') return 'Retire Capability';
+  if (dialog === 'merge') return 'Merge Capability';
+  if (dialog === 'delete') return 'Delete Draft Capability';
+  return 'Structural Operation';
+}
+
+function structuralDialogAction(dialog: StructuralDialog): string {
+  if (dialog === 'retire') return 'Retire';
+  if (dialog === 'merge') return 'Merge';
+  if (dialog === 'delete') return 'Delete';
+  return 'Apply';
+}
+
+export function canRunStructuralDialog(
+  dialog: StructuralDialog,
+  rationale: string,
+  survivorId: string,
+): boolean {
+  if (!dialog || !rationale.trim()) return false;
+  if (dialog === 'merge') return Boolean(survivorId);
+  return true;
 }

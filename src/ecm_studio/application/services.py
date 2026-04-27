@@ -9,9 +9,12 @@ from pydantic import ValidationError
 from ecm_studio.domain.capabilities import (
     build_tree,
     create_capability,
+    delete_capability,
     get_capability,
+    merge_capabilities,
     move_capability,
     replace_capability,
+    retire_capability,
     update_capability,
     with_computed_types,
 )
@@ -204,6 +207,7 @@ class CapabilityService:
         except ValidationError as exc:
             raise ValidationFailed("Invalid capability create input.", exc.errors()) from exc
         capabilities = self._load()
+        before_capabilities = list(capabilities)
         capability = create_capability(capabilities, create_input)
         capabilities.append(capability)
         capabilities = with_computed_types(capabilities)
@@ -217,6 +221,8 @@ class CapabilityService:
                 after=capability.durable_dict(),
                 patch=create_input.model_dump(exclude_unset=True, mode="json"),
             ),
+            before_capabilities=before_capabilities,
+            type_event_context="create",
         )
         return capability_dto(capability)
 
@@ -249,6 +255,7 @@ class CapabilityService:
         self, capability_id: str, new_parent_id: str | None, order: int | None = None
     ) -> dict[str, Any]:
         capabilities = self._load()
+        before_capabilities = list(capabilities)
         before = get_capability(capabilities, capability_id)
         capabilities, moved = move_capability(capabilities, capability_id, new_parent_id, order)
         capabilities = with_computed_types(capabilities)
@@ -263,6 +270,8 @@ class CapabilityService:
                 after=moved.durable_dict(),
                 patch={"parent_id": new_parent_id, "order": moved.order},
             ),
+            before_capabilities=before_capabilities,
+            type_event_context="move",
         )
         return capability_dto(moved)
 
@@ -280,6 +289,7 @@ class CapabilityService:
             raise ValidationFailed("Invalid capability patch input.", exc.errors()) from exc
 
         capabilities = self._load()
+        before_capabilities = list(capabilities)
         before = get_capability(capabilities, capability_id)
         patch_payload = patch.model_dump(exclude_unset=True, mode="json")
         metadata_changed = _patch_has_changes(before, patch_payload)
@@ -324,8 +334,119 @@ class CapabilityService:
                 )
             )
 
-        self._save_and_rebuild(working, events)
+        self._save_and_rebuild(
+            working,
+            events,
+            before_capabilities=before_capabilities,
+            type_event_context="save",
+        )
         return capability_dto(final)
+
+    def retire(self, capability_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
+        operation = _structural_operation_input(input_data)
+        capabilities = self._load()
+        before_capabilities = list(capabilities)
+        before = get_capability(capabilities, capability_id)
+        retired = retire_capability(
+            capabilities,
+            capability_id,
+            operation["rationale"],
+            replacement_capability_id=operation["replacement_capability_id"],
+        )
+        capabilities = with_computed_types(replace_capability(capabilities, retired))
+        retired = get_capability(capabilities, capability_id)
+        self._save_and_rebuild(
+            capabilities,
+            CapabilityEvent(
+                capability_id=retired.id,
+                action="retire",
+                summary=f'Retired capability "{retired.name}".',
+                before=before.durable_dict(),
+                after=retired.durable_dict(),
+                patch=operation,
+            ),
+            before_capabilities=before_capabilities,
+            type_event_context="retire",
+        )
+        return capability_dto(retired)
+
+    def delete(self, capability_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
+        operation = _structural_operation_input(input_data, allow_replacement=False)
+        capabilities = self._load()
+        before_capabilities = list(capabilities)
+        capabilities, deleted = delete_capability(capabilities, capability_id)
+        capabilities = with_computed_types(capabilities)
+        self._save_and_rebuild(
+            capabilities,
+            CapabilityEvent(
+                capability_id=deleted.id,
+                action="delete",
+                summary=f'Deleted draft capability "{deleted.name}".',
+                before=deleted.durable_dict(),
+                after=None,
+                patch=operation,
+            ),
+            before_capabilities=before_capabilities,
+            type_event_context="delete",
+        )
+        return {"deleted_id": deleted.id, "deleted_name": deleted.name}
+
+    def merge(
+        self, source_id: str, survivor_id: str, input_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        operation = _structural_operation_input(input_data, allow_replacement=False)
+        capabilities = self._load()
+        before_capabilities = list(capabilities)
+        source_before = get_capability(capabilities, source_id)
+        survivor_before = get_capability(capabilities, survivor_id)
+        (
+            capabilities,
+            source_before,
+            source_after,
+            survivor_after,
+            source_removed,
+        ) = merge_capabilities(
+            capabilities,
+            source_id,
+            survivor_id,
+            operation["rationale"],
+        )
+        capabilities = with_computed_types(capabilities)
+        survivor_after = get_capability(capabilities, survivor_id)
+        if source_after is not None:
+            source_after = get_capability(capabilities, source_id)
+        self._save_and_rebuild(
+            capabilities,
+            CapabilityEvent(
+                capability_id=survivor_after.id,
+                action="merge",
+                summary=(
+                    f'Merged capability "{source_before.name}" into '
+                    f'"{survivor_after.name}".'
+                ),
+                before={
+                    "source": source_before.durable_dict(),
+                    "survivor": survivor_before.durable_dict(),
+                },
+                after={
+                    "source": source_after.durable_dict() if source_after else None,
+                    "survivor": survivor_after.durable_dict(),
+                },
+                patch={
+                    **operation,
+                    "source_id": source_id,
+                    "survivor_id": survivor_id,
+                    "source_removed": source_removed,
+                },
+            ),
+            before_capabilities=before_capabilities,
+            type_event_context="merge",
+        )
+        return {
+            "source": capability_dto(source_after) if source_after else None,
+            "survivor": capability_dto(survivor_after),
+            "source_removed": source_removed,
+        }
 
     def export(self, format_name: str) -> dict[str, Any]:
         workspace = self.context.require_workspace()
@@ -350,12 +471,24 @@ class CapabilityService:
         self,
         capabilities: list[Capability],
         event: CapabilityEvent | list[CapabilityEvent] | None = None,
+        before_capabilities: list[Capability] | None = None,
+        type_event_context: str | None = None,
     ) -> None:
         workspace = self.context.require_workspace()
+        capabilities = with_computed_types(capabilities)
         CapabilityRepository(workspace.paths.capabilities_file).save(capabilities)
         if event is not None:
             event_repo = EventRepository(workspace.paths.resolve(CAPABILITY_VERSIONS_FILE))
             events = event if isinstance(event, list) else [event]
+            if before_capabilities is not None:
+                events = [
+                    *events,
+                    *_type_transition_events(
+                        before_capabilities,
+                        capabilities,
+                        type_event_context or "structural_operation",
+                    ),
+                ]
             for item in events:
                 event_repo.append_capability_event(item)
         SQLiteProjection(workspace).rebuild()
@@ -1037,6 +1170,68 @@ def _model_format(value: str) -> ImportFormat:
     if value in {"jsonl", "csv", "json_bundle"}:
         return value
     raise ValidationFailed("Model format must be jsonl, csv, or json_bundle.")
+
+
+def _structural_operation_input(
+    input_data: dict[str, Any], allow_replacement: bool = True
+) -> dict[str, Any]:
+    if not isinstance(input_data, dict):
+        raise ValidationFailed("Structural operation input must be an object.")
+    allowed = {"rationale", "downstream_handling"}
+    if allow_replacement:
+        allowed.add("replacement_capability_id")
+    unknown = set(input_data) - allowed
+    if unknown:
+        raise ValidationFailed(
+            "Invalid structural operation input.",
+            [{"field": field, "message": "Unknown input field."} for field in sorted(unknown)],
+        )
+    rationale = str(input_data.get("rationale") or "").strip()
+    if not rationale:
+        raise ValidationFailed("Structural operation rationale is required.")
+    downstream_handling = str(input_data.get("downstream_handling") or "").strip()
+    replacement_capability_id = input_data.get("replacement_capability_id")
+    if replacement_capability_id is not None:
+        replacement_capability_id = str(replacement_capability_id).strip() or None
+    return {
+        "rationale": rationale,
+        "downstream_handling": downstream_handling,
+        "replacement_capability_id": replacement_capability_id
+        if allow_replacement
+        else None,
+    }
+
+
+def _type_transition_events(
+    before_capabilities: list[Capability],
+    after_capabilities: list[Capability],
+    trigger: str,
+) -> list[CapabilityEvent]:
+    before_by_id = {
+        capability.id: capability for capability in with_computed_types(before_capabilities)
+    }
+    after_by_id = {
+        capability.id: capability for capability in with_computed_types(after_capabilities)
+    }
+    events: list[CapabilityEvent] = []
+    for capability_id in sorted(before_by_id.keys() & after_by_id.keys()):
+        before = before_by_id[capability_id]
+        after = after_by_id[capability_id]
+        if before.type == after.type:
+            continue
+        action = "promote" if after.type == "abstract" else "demote"
+        target = "abstract" if action == "promote" else "leaf"
+        events.append(
+            CapabilityEvent(
+                capability_id=after.id,
+                action=action,
+                summary=f'{action.title()}d capability "{after.name}" to {target}.',
+                before=before.durable_dict(),
+                after=after.durable_dict(),
+                patch={"type": after.type, "trigger": trigger},
+            )
+        )
+    return events
 
 
 def _sanitize_capability_patch(patch_data: dict[str, Any]) -> dict[str, Any]:

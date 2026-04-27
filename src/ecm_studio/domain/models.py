@@ -19,7 +19,17 @@ DEFAULT_CAPABILITY_MAP_DEPTH_COLORS = [
 DEFAULT_CAPABILITY_MAP_LEAF_COLOR = "#E8E8E8"
 CapabilityKind = Literal["abstract", "leaf"]
 LifecycleStatus = Literal["Draft", "Active", "Deprecated", "Retired"]
-CapabilityEventAction = Literal["create", "update", "move", "import"]
+CapabilityEventAction = Literal[
+    "create",
+    "update",
+    "move",
+    "import",
+    "retire",
+    "delete",
+    "merge",
+    "promote",
+    "demote",
+]
 HexColor = Annotated[str, Field(pattern=r"^#[0-9A-Fa-f]{6}$")]
 
 
@@ -54,6 +64,7 @@ class Capability(JsonModel):
     tags: list[str] = Field(default_factory=list)
     steward_id: str = ""
     steward_department: str = ""
+    replacement_capability_id: str | None = None
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 
@@ -76,6 +87,7 @@ class CapabilityCreate(JsonModel):
     tags: list[str] = Field(default_factory=list)
     steward_id: str = ""
     steward_department: str = ""
+    replacement_capability_id: str | None = None
 
 
 class CapabilityPatch(JsonModel):
@@ -91,6 +103,7 @@ class CapabilityPatch(JsonModel):
     tags: list[str] | None = None
     steward_id: str | None = None
     steward_department: str | None = None
+    replacement_capability_id: str | None = None
 
 
 class CapabilityTreeNode(JsonModel):

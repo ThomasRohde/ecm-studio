@@ -267,6 +267,7 @@ class ModelIOService:
                     "tags",
                     "steward_id",
                     "steward_department",
+                    "replacement_capability_id",
                 ],
             )
             writer.writeheader()
@@ -285,6 +286,8 @@ class ModelIOService:
                         "tags": ";".join(capability.tags),
                         "steward_id": capability.steward_id,
                         "steward_department": capability.steward_department,
+                        "replacement_capability_id": capability.replacement_capability_id
+                        or "",
                     }
                 )
 
@@ -342,6 +345,7 @@ def _raw_from_csv_row(row: dict[str, Any]) -> dict[str, Any]:
         "tags": _split_multi(row.get("tags")),
         "steward_id": row.get("steward_id") or "",
         "steward_department": row.get("steward_department") or "",
+        "replacement_capability_id": row.get("replacement_capability_id") or None,
     }
     order = row.get("order")
     if order not in {None, ""}:

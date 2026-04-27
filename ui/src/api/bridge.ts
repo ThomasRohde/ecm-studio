@@ -4,8 +4,13 @@ import type {
   AuditEvent,
   BranchIntegrationCandidate,
   Capability,
+  CapabilityDeleteInput,
+  CapabilityDeleteResult,
   CapabilityMapColorScheme,
+  CapabilityMergeInput,
+  CapabilityMergeResult,
   CapabilityPatch,
+  CapabilityRetireInput,
   Checkpoint,
   Diagnostic,
   Envelope,
@@ -305,6 +310,7 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
       tags: input.tags || [],
       steward_id: '',
       steward_department: '',
+      replacement_capability_id: input.replacement_capability_id ?? null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       children: [],
@@ -394,6 +400,93 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
     );
     applyComputedCapabilityTypes();
     return existing as T;
+  }
+  if (method === 'capabilities_retire') {
+    const id = String(args[0]);
+    const input = normalizeStructuralInput(args[1] as CapabilityRetireInput);
+    const existing = mockState.capabilities.find((c) => c.id === id);
+    if (!existing) throw new Error('VALIDATION_FAILED: Capability not found.');
+    if (input.replacement_capability_id === id) {
+      throw new Error('VALIDATION_FAILED: Replacement capability must be different.');
+    }
+    existing.lifecycle_status = 'Retired';
+    existing.effective_to = new Date().toISOString();
+    existing.rationale = input.rationale;
+    existing.replacement_capability_id = input.replacement_capability_id ?? null;
+    existing.updated_at = new Date().toISOString();
+    pushMockCapabilityAudit('retire', existing.id, `Retired capability "${existing.name}".`, {
+      patch: input,
+      after: existing,
+    });
+    return existing as T;
+  }
+  if (method === 'capabilities_delete') {
+    const id = String(args[0]);
+    const input = normalizeStructuralInput(args[1] as CapabilityDeleteInput);
+    const existing = mockState.capabilities.find((c) => c.id === id);
+    if (!existing) throw new Error('VALIDATION_FAILED: Capability not found.');
+    if (
+      existing.lifecycle_status !== 'Draft' ||
+      mockState.capabilities.some((capability) => capability.parent_id === id)
+    ) {
+      throw new Error('VALIDATION_FAILED: Only Draft leaf capabilities can be deleted.');
+    }
+    mockState.capabilities = mockState.capabilities.filter((capability) => capability.id !== id);
+    normalizeMockSiblings(orderedMockSiblings(existing.parent_id));
+    applyComputedCapabilityTypes();
+    pushMockCapabilityAudit('delete', existing.id, `Deleted draft capability "${existing.name}".`, {
+      patch: input,
+      before: existing,
+    });
+    return { deleted_id: existing.id, deleted_name: existing.name } as T;
+  }
+  if (method === 'capabilities_merge') {
+    const sourceId = String(args[0]);
+    const survivorId = String(args[1]);
+    const input = normalizeStructuralInput(args[2] as CapabilityMergeInput);
+    const source = mockState.capabilities.find((capability) => capability.id === sourceId);
+    const survivor = mockState.capabilities.find((capability) => capability.id === survivorId);
+    if (!source || !survivor) throw new Error('VALIDATION_FAILED: Capability not found.');
+    if (sourceId === survivorId) {
+      throw new Error('VALIDATION_FAILED: Source and survivor capabilities must be different.');
+    }
+    if (isMockCapabilityDescendant(survivorId, sourceId)) {
+      throw new Error('VALIDATION_FAILED: Survivor capability cannot be a descendant.');
+    }
+    const sourceBefore = { ...source };
+    const survivorBefore = { ...survivor };
+    survivor.aliases = mergedMockAliases(survivor, source);
+    survivor.updated_at = new Date().toISOString();
+    for (const child of orderedMockSiblings(sourceId)) {
+      moveMockCapability(child.id, survivorId);
+    }
+    const sourceRemoved = source.lifecycle_status === 'Draft';
+    let sourceAfter: Capability | null = source;
+    if (sourceRemoved) {
+      mockState.capabilities = mockState.capabilities.filter(
+        (capability) => capability.id !== sourceId,
+      );
+      sourceAfter = null;
+    } else {
+      source.lifecycle_status = 'Retired';
+      source.effective_to = new Date().toISOString();
+      source.rationale = input.rationale;
+      source.replacement_capability_id = survivorId;
+      source.updated_at = new Date().toISOString();
+    }
+    normalizeMockSiblings(orderedMockSiblings(sourceBefore.parent_id));
+    applyComputedCapabilityTypes();
+    pushMockCapabilityAudit('merge', survivor.id, `Merged capability "${source.name}".`, {
+      patch: {
+        ...input,
+        source_id: sourceId,
+        survivor_id: survivorId,
+        source_removed: sourceRemoved,
+      },
+      before: { source: sourceBefore, survivor: survivorBefore },
+      after: { source: sourceAfter, survivor },
+    });
+    return { source: sourceAfter, survivor, source_removed: sourceRemoved } as T;
   }
   if (method === 'capabilities_get') {
     const existing = mockState.capabilities.find((c) => c.id === args[0]);
@@ -569,6 +662,75 @@ function buildTree(flat: Capability[]): Capability[] {
     else roots.push(cap);
   }
   return roots;
+}
+
+function normalizeStructuralInput<
+  T extends {
+    rationale: string;
+    downstream_handling?: string;
+    replacement_capability_id?: string | null;
+  },
+>(input: T): T {
+  const rationale = String(input?.rationale ?? '').trim();
+  if (!rationale) throw new Error('VALIDATION_FAILED: Structural operation rationale is required.');
+  return {
+    ...input,
+    rationale,
+    downstream_handling: String(input?.downstream_handling ?? '').trim(),
+    replacement_capability_id: input?.replacement_capability_id ?? null,
+  } as T;
+}
+
+function pushMockCapabilityAudit(
+  action: string,
+  capabilityId: string,
+  summary: string,
+  detail: Record<string, unknown>,
+) {
+  mockState.audit.unshift({
+    source: 'ecm/capability_versions.jsonl',
+    line: mockState.audit.length + 1,
+    record: {
+      _t: 'capability_version',
+      schema_version: '1.0',
+      id: crypto.randomUUID(),
+      capability_id: capabilityId,
+      action,
+      summary,
+      ...detail,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  });
+}
+
+function isMockCapabilityDescendant(maybeDescendantId: string, ancestorId: string): boolean {
+  let current = mockState.capabilities.find((capability) => capability.id === maybeDescendantId);
+  const seen = new Set<string>();
+  while (current?.parent_id) {
+    if (current.parent_id === ancestorId) return true;
+    if (seen.has(current.parent_id)) return false;
+    seen.add(current.parent_id);
+    current = mockState.capabilities.find((capability) => capability.id === current?.parent_id);
+  }
+  return false;
+}
+
+function mergedMockAliases(survivor: Capability, source: Capability): string[] {
+  const aliases: string[] = [];
+  const seen = new Set([normalizeMockName(survivor.name)]);
+  for (const alias of [...survivor.aliases, source.name, ...source.aliases]) {
+    const trimmed = alias.trim();
+    const normalized = normalizeMockName(trimmed);
+    if (!trimmed || seen.has(normalized)) continue;
+    seen.add(normalized);
+    aliases.push(trimmed);
+  }
+  return aliases;
+}
+
+function normalizeMockName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 function nextMockOrder(parentId: string | null): number {
@@ -774,6 +936,12 @@ export const api = {
       call<Capability>('capabilities_save', id, patch, parentId, order),
     move: (id: string, parentId: string | null, order?: number) =>
       call<Capability>('capabilities_move', id, parentId, order),
+    retire: (id: string, input: CapabilityRetireInput) =>
+      call<Capability>('capabilities_retire', id, input),
+    delete: (id: string, input: CapabilityDeleteInput) =>
+      call<CapabilityDeleteResult>('capabilities_delete', id, input),
+    merge: (sourceId: string, survivorId: string, input: CapabilityMergeInput) =>
+      call<CapabilityMergeResult>('capabilities_merge', sourceId, survivorId, input),
     export: (format: 'csv' | 'json') =>
       call<{ path: string; count: number }>('capabilities_export', format),
   },

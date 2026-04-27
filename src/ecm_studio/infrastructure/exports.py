@@ -36,6 +36,7 @@ class ExportService:
                     "tags",
                     "steward_id",
                     "steward_department",
+                    "replacement_capability_id",
                 ],
             )
             writer.writeheader()
@@ -54,6 +55,8 @@ class ExportService:
                         "tags": ";".join(capability.tags),
                         "steward_id": capability.steward_id,
                         "steward_department": capability.steward_department,
+                        "replacement_capability_id": capability.replacement_capability_id
+                        or "",
                     }
                 )
         return path

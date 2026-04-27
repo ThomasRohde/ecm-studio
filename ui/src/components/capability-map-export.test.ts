@@ -212,6 +212,7 @@ function capability(
     tags: [],
     steward_id: '',
     steward_department: '',
+    replacement_capability_id: null,
     created_at: '',
     updated_at: '',
     children,

@@ -195,3 +195,69 @@ def test_move_persists_order_sqlite_and_audit(tmp_path: Path) -> None:
     assert move_events
     assert move_events[-1]["capability_id"] == moved["id"]
     assert move_events[-1]["patch"] == {"parent_id": root["id"], "order": 0}
+
+
+def test_retire_delete_and_merge_persist_rebuild_and_audit(tmp_path: Path) -> None:
+    services = AppServices(settings_path=tmp_path / "settings.json")
+    services.workspace.init(str(tmp_path), "Structural Operations")
+    source = services.capabilities.create({"name": "Duplicate"})
+    child = services.capabilities.create({"name": "Duplicate Child", "parent_id": source["id"]})
+    survivor = services.capabilities.create({"name": "Canonical"})
+    retiring = services.capabilities.create({"name": "Retire Me"})
+    draft_leaf = services.capabilities.create({"name": "Delete Me"})
+    delete_parent = services.capabilities.create({"name": "Delete Parent"})
+    delete_child = services.capabilities.create(
+        {"name": "Delete Child", "parent_id": delete_parent["id"]}
+    )
+
+    retired = services.capabilities.retire(
+        retiring["id"],
+        {
+            "rationale": "No longer used.",
+            "replacement_capability_id": survivor["id"],
+            "downstream_handling": "No downstream impact.",
+        },
+    )
+    merged = services.capabilities.merge(
+        source["id"],
+        survivor["id"],
+        {
+            "rationale": "Duplicate model entry.",
+            "downstream_handling": "Move downstream references to survivor.",
+        },
+    )
+    deleted = services.capabilities.delete(
+        draft_leaf["id"],
+        {"rationale": "Created by mistake.", "downstream_handling": "No consumers."},
+    )
+    services.capabilities.delete(
+        delete_child["id"],
+        {"rationale": "Created by mistake.", "downstream_handling": "No consumers."},
+    )
+
+    tree = services.capabilities.list_tree()
+    flat = _flatten_tree(tree)
+    assert retired["lifecycle_status"] == "Retired"
+    assert retired["replacement_capability_id"] == survivor["id"]
+    assert merged["source_removed"] is True
+    assert flat[child["id"]]["parent_id"] == survivor["id"]
+    assert "Duplicate" in flat[survivor["id"]]["aliases"]
+    assert deleted["deleted_id"] == draft_leaf["id"]
+    assert draft_leaf["id"] not in flat
+    assert services.search.query("Duplicate Child")[0]["parent_id"] == survivor["id"]
+
+    records = read_raw_jsonl(tmp_path / "ecm" / "capability_versions.jsonl").records
+    actions = [record["action"] for record in records]
+    assert "retire" in actions
+    assert "merge" in actions
+    assert "delete" in actions
+    assert "promote" in actions
+    assert "demote" in actions
+
+
+def _flatten_tree(nodes: list[dict]) -> dict[str, dict]:
+    result: dict[str, dict] = {}
+    for node in nodes:
+        result[node["id"]] = node
+        result.update(_flatten_tree(node.get("children", [])))
+    return result

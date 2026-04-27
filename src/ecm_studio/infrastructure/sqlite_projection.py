@@ -141,6 +141,7 @@ class SQLiteProjection:
               tags TEXT NOT NULL,
               steward_id TEXT NOT NULL,
               steward_department TEXT NOT NULL,
+              replacement_capability_id TEXT,
               updated_at TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS hierarchy_paths (
@@ -180,6 +181,7 @@ class SQLiteProjection:
             CREATE INDEX IF NOT EXISTS idx_search_tokens ON search_tokens(token);
             """
         )
+        self._ensure_column(conn, "capabilities", "replacement_capability_id", "TEXT")
 
     def _clear(self, conn: sqlite3.Connection) -> None:
         for table in [
@@ -204,8 +206,9 @@ class SQLiteProjection:
                 """
                 INSERT INTO capabilities(
                   id, name, parent_id, path, path_sort, depth, aliases, description, domain,
-                  type, lifecycle_status, tags, steward_id, steward_department, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  type, lifecycle_status, tags, steward_id, steward_department,
+                  replacement_capability_id, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     capability.id,
@@ -224,6 +227,7 @@ class SQLiteProjection:
                     "\n".join(capability.tags),
                     capability.steward_id,
                     capability.steward_department,
+                    capability.replacement_capability_id,
                     capability.updated_at,
                 ),
             )
@@ -254,6 +258,22 @@ class SQLiteProjection:
             ]
         )
         yield from TOKEN_RE.findall(text.lower())
+
+    def _ensure_column(
+        self,
+        conn: sqlite3.Connection,
+        table_name: str,
+        column_name: str,
+        column_definition: str,
+    ) -> None:
+        columns = {
+            row["name"]
+            for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+        }
+        if column_name not in columns:
+            conn.execute(
+                f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"
+            )
 
     def _hash_file(self, path: Path) -> str:
         if not path.exists():

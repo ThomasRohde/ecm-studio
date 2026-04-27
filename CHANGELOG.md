@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0] - 2026-04-27
+
+- Add direct structural operations for retiring, merging, and controlled Draft
+  leaf deletes with rationale-backed audit events.
+- Preserve replacement capability links across domain models, import/export,
+  SQLite projection, bridge APIs, and the desktop UI.
+- Record derived `promote` and `demote` audit events when hierarchy changes
+  alter computed capability type.
+- Document common ECM Studio workflows, including bootstrapping an existing
+  model with CSV, JSONL, or bundled JSON schema guidance.
+
 ## [0.3.3] - 2026-04-26
 
 - Bundle UI fonts locally and remove the Google Fonts runtime dependency.

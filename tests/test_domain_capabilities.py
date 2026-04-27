@@ -5,12 +5,15 @@ import pytest
 from ecm_studio.domain.capabilities import (
     build_tree,
     create_capability,
+    delete_capability,
     get_capability,
+    merge_capabilities,
     move_capability,
     replace_capability,
+    retire_capability,
     update_capability,
 )
-from ecm_studio.domain.errors import CycleDetected, DuplicateName
+from ecm_studio.domain.errors import CycleDetected, DuplicateName, ValidationFailed
 from ecm_studio.domain.models import Capability, CapabilityCreate, CapabilityPatch
 
 
@@ -175,3 +178,93 @@ def test_move_preserves_metadata_and_descendants() -> None:
     assert moved.tags == ["preserved"]
     assert moved.steward_id == "steward"
     assert get_capability(capabilities, child.id).parent_id == moved_parent.id
+
+
+def test_retire_sets_lifecycle_rationale_and_replacement() -> None:
+    capabilities = []
+    retiring = create_capability(capabilities, CapabilityCreate(name="Old"))
+    capabilities.append(retiring)
+    replacement = create_capability(capabilities, CapabilityCreate(name="New"))
+    capabilities.append(replacement)
+
+    retired = retire_capability(capabilities, retiring.id, "Duplicated", replacement.id)
+
+    assert retired.lifecycle_status == "Retired"
+    assert retired.rationale == "Duplicated"
+    assert retired.replacement_capability_id == replacement.id
+    assert retired.effective_to
+
+
+def test_delete_only_allows_draft_leaf_capabilities() -> None:
+    capabilities = []
+    parent = create_capability(capabilities, CapabilityCreate(name="Parent"))
+    capabilities.append(parent)
+    child = create_capability(capabilities, CapabilityCreate(name="Child", parent_id=parent.id))
+    capabilities.append(child)
+
+    with pytest.raises(ValidationFailed, match="Draft leaf"):
+        delete_capability(capabilities, parent.id)
+
+    active_child = child.model_copy(update={"lifecycle_status": "Active"})
+    active_capabilities = replace_capability(capabilities, active_child)
+    with pytest.raises(ValidationFailed, match="Draft leaf"):
+        delete_capability(active_capabilities, child.id)
+
+    remaining, deleted = delete_capability(capabilities, child.id)
+
+    assert deleted.id == child.id
+    assert [capability.id for capability in remaining] == [parent.id]
+
+
+def test_merge_moves_children_and_removes_draft_source() -> None:
+    capabilities = []
+    source = create_capability(capabilities, CapabilityCreate(name="Duplicate", aliases=["Dup"]))
+    capabilities.append(source)
+    survivor = create_capability(capabilities, CapabilityCreate(name="Canonical"))
+    capabilities.append(survivor)
+    child = create_capability(capabilities, CapabilityCreate(name="Child", parent_id=source.id))
+    capabilities.append(child)
+
+    merged, source_before, source_after, survivor_after, source_removed = merge_capabilities(
+        capabilities, source.id, survivor.id, "Same capability"
+    )
+
+    assert source_before.id == source.id
+    assert source_after is None
+    assert source_removed is True
+    assert get_capability(merged, child.id).parent_id == survivor.id
+    assert survivor_after.aliases == ["Duplicate", "Dup"]
+    assert all(capability.id != source.id for capability in merged)
+
+
+def test_merge_retires_non_draft_source_with_traceability() -> None:
+    capabilities = []
+    source = create_capability(capabilities, CapabilityCreate(name="Duplicate"))
+    source = source.model_copy(update={"lifecycle_status": "Active"})
+    capabilities.append(source)
+    survivor = create_capability(capabilities, CapabilityCreate(name="Canonical"))
+    capabilities.append(survivor)
+
+    merged, _, source_after, survivor_after, source_removed = merge_capabilities(
+        capabilities, source.id, survivor.id, "Consolidated"
+    )
+
+    assert source_removed is False
+    assert source_after is not None
+    assert source_after.lifecycle_status == "Retired"
+    assert source_after.replacement_capability_id == survivor.id
+    assert get_capability(merged, source.id).replacement_capability_id == survivor.id
+    assert survivor_after.aliases == ["Duplicate"]
+
+
+def test_merge_rejects_descendant_survivor_to_prevent_cycles() -> None:
+    capabilities = []
+    source = create_capability(capabilities, CapabilityCreate(name="Source"))
+    capabilities.append(source)
+    survivor = create_capability(
+        capabilities, CapabilityCreate(name="Survivor", parent_id=source.id)
+    )
+    capabilities.append(survivor)
+
+    with pytest.raises(ValidationFailed, match="descendant"):
+        merge_capabilities(capabilities, source.id, survivor.id, "Consolidated")

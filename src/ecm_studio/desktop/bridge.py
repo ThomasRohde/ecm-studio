@@ -107,6 +107,24 @@ class BridgeApi:
         return self._services.capabilities.move(capability_id, new_parent_id, order)
 
     @envelope
+    def capabilities_retire(
+        self, capability_id: str, input_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        return self._services.capabilities.retire(capability_id, input_data)
+
+    @envelope
+    def capabilities_delete(
+        self, capability_id: str, input_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        return self._services.capabilities.delete(capability_id, input_data)
+
+    @envelope
+    def capabilities_merge(
+        self, source_id: str, survivor_id: str, input_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        return self._services.capabilities.merge(source_id, survivor_id, input_data)
+
+    @envelope
     def capabilities_export(self, format_name: str) -> dict[str, Any]:
         return self._services.capabilities.export(format_name)
 

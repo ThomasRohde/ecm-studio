@@ -180,6 +180,7 @@ export interface Capability {
   tags: string[];
   steward_id: string;
   steward_department: string;
+  replacement_capability_id: string | null;
   created_at: string;
   updated_at: string;
   children?: Capability[];
@@ -199,7 +200,32 @@ export type CapabilityPatch = Pick<
   | 'tags'
   | 'steward_id'
   | 'steward_department'
+  | 'replacement_capability_id'
 >;
+
+export interface StructuralOperationInput {
+  rationale: string;
+  downstream_handling?: string;
+}
+
+export interface CapabilityRetireInput extends StructuralOperationInput {
+  replacement_capability_id?: string | null;
+}
+
+export type CapabilityDeleteInput = StructuralOperationInput;
+
+export type CapabilityMergeInput = StructuralOperationInput;
+
+export interface CapabilityDeleteResult {
+  deleted_id: string;
+  deleted_name: string;
+}
+
+export interface CapabilityMergeResult {
+  source: Capability | null;
+  survivor: Capability;
+  source_removed: boolean;
+}
 
 export interface SearchResult {
   id: string;

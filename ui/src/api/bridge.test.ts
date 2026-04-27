@@ -169,6 +169,41 @@ describe('bridge mock fallback', () => {
     expect(movedTarget?.children?.map((capability) => capability.id)).toContain(child.id);
   });
 
+  it('supports structural operation mocks', async () => {
+    const suffix = String(Date.now());
+    await api.workspace.init(`C:/tmp/ecm-structural-${suffix}`, 'Structural');
+    const source = await api.capabilities.create({ name: `Duplicate ${suffix}` });
+    const child = await api.capabilities.create({
+      name: `Duplicate Child ${suffix}`,
+      parent_id: source.id,
+    });
+    const survivor = await api.capabilities.create({ name: `Canonical ${suffix}` });
+    const retiring = await api.capabilities.create({ name: `Retiring ${suffix}` });
+    const draft = await api.capabilities.create({ name: `Delete ${suffix}` });
+
+    const retired = await api.capabilities.retire(retiring.id, {
+      rationale: 'No longer used',
+      replacement_capability_id: survivor.id,
+    });
+    const merged = await api.capabilities.merge(source.id, survivor.id, {
+      rationale: 'Duplicate',
+      downstream_handling: 'Use survivor',
+    });
+    const deleted = await api.capabilities.delete(draft.id, { rationale: 'Mistake' });
+    const tree = await api.capabilities.listTree();
+    const flat = flatten(tree);
+    const survivorAfter = flat.find((capability) => capability.id === survivor.id);
+
+    expect(retired.lifecycle_status).toBe('Retired');
+    expect(retired.replacement_capability_id).toBe(survivor.id);
+    expect(merged.source_removed).toBe(true);
+    expect(merged.survivor.aliases).toContain(source.name);
+    expect(flat.find((capability) => capability.id === child.id)?.parent_id).toBe(survivor.id);
+    expect(survivorAfter?.type).toBe('abstract');
+    expect(deleted.deleted_id).toBe(draft.id);
+    expect(flat.find((capability) => capability.id === draft.id)).toBeUndefined();
+  });
+
   it('guards import apply using the previewed mode', () => {
     const basePreview: ImportPreview = {
       source_path: 'C:/tmp/import.jsonl',

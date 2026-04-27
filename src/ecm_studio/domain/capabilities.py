@@ -217,6 +217,100 @@ def move_capability(
     return [replacements.get(item.id, item) for item in capabilities], moved
 
 
+def retire_capability(
+    capabilities: list[Capability],
+    capability_id: str,
+    rationale: str,
+    replacement_capability_id: str | None = None,
+    effective_to: str | None = None,
+) -> Capability:
+    rationale = rationale.strip()
+    if not rationale:
+        raise ValidationFailed("Structural operation rationale is required.")
+    capability = get_capability(capabilities, capability_id)
+    if replacement_capability_id is not None:
+        if replacement_capability_id == capability_id:
+            raise ValidationFailed(
+                "Replacement capability must be different from the retired capability."
+            )
+        get_capability(capabilities, replacement_capability_id)
+    return capability.model_copy(
+        update={
+            "lifecycle_status": "Retired",
+            "effective_to": effective_to or now_iso(),
+            "rationale": rationale,
+            "replacement_capability_id": replacement_capability_id,
+            "updated_at": now_iso(),
+        }
+    )
+
+
+def delete_capability(
+    capabilities: list[Capability], capability_id: str
+) -> tuple[list[Capability], Capability]:
+    capability = get_capability(capabilities, capability_id)
+    if capability.lifecycle_status != "Draft":
+        raise ValidationFailed("Only Draft leaf capabilities can be deleted.")
+    if any(item.parent_id == capability_id for item in capabilities):
+        raise ValidationFailed("Only Draft leaf capabilities can be deleted.")
+    return _remove_capability_and_normalize(capabilities, capability), capability
+
+
+def merge_capabilities(
+    capabilities: list[Capability],
+    source_id: str,
+    survivor_id: str,
+    rationale: str,
+    effective_to: str | None = None,
+) -> tuple[list[Capability], Capability, Capability | None, Capability, bool]:
+    rationale = rationale.strip()
+    if not rationale:
+        raise ValidationFailed("Structural operation rationale is required.")
+    if source_id == survivor_id:
+        raise ValidationFailed("Source and survivor capabilities must be different.")
+    source = get_capability(capabilities, source_id)
+    survivor = get_capability(capabilities, survivor_id)
+    if is_descendant(capabilities, survivor_id, source_id):
+        raise ValidationFailed(
+            "Survivor capability cannot be a descendant of the source capability."
+        )
+
+    survivor_aliases = _merged_aliases(survivor, source)
+    working = replace_capability(
+        capabilities,
+        survivor.model_copy(
+            update={
+                "aliases": survivor_aliases,
+                "updated_at": now_iso(),
+            }
+        ),
+    )
+
+    for child in _ordered_siblings(working, source_id):
+        working, _ = move_capability(working, child.id, survivor_id)
+
+    working = with_computed_types(working)
+    source_removed = source.lifecycle_status == "Draft"
+    source_after: Capability | None = None
+    if source_removed:
+        working = _remove_capability_and_normalize(working, source)
+    else:
+        source_after = retire_capability(
+            working,
+            source_id,
+            rationale,
+            replacement_capability_id=survivor_id,
+            effective_to=effective_to,
+        )
+        working = replace_capability(working, source_after)
+
+    working = with_computed_types(working)
+    survivor_after = get_capability(working, survivor_id)
+    if source_after is not None:
+        source_after = get_capability(working, source_id)
+    return working, source, source_after, survivor_after, source_removed
+
+
 def replace_capability(capabilities: list[Capability], updated: Capability) -> list[Capability]:
     return [updated if capability.id == updated.id else capability for capability in capabilities]
 
@@ -244,6 +338,32 @@ def _normalize_sibling_order(siblings: Iterable[Capability]) -> list[Capability]
         else:
             result.append(capability.model_copy(update={"order": index}))
     return result
+
+
+def _merged_aliases(survivor: Capability, source: Capability) -> list[str]:
+    aliases: list[str] = []
+    seen = {normalize_name(survivor.name)}
+    for alias in [*survivor.aliases, source.name, *source.aliases]:
+        alias = alias.strip()
+        if not alias:
+            continue
+        normalized = normalize_name(alias)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        aliases.append(alias)
+    return aliases
+
+
+def _remove_capability_and_normalize(
+    capabilities: list[Capability], removed: Capability
+) -> list[Capability]:
+    remaining = [item for item in capabilities if item.id != removed.id]
+    replacements = {
+        sibling.id: sibling
+        for sibling in _normalize_sibling_order(_ordered_siblings(remaining, removed.parent_id))
+    }
+    return [replacements.get(item.id, item) for item in remaining]
 
 
 def sort_capabilities_depth_first(capabilities: Iterable[Capability]) -> list[Capability]:
