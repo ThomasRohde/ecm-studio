@@ -1,7 +1,6 @@
 # Changelog
 
-## [Unreleased]
-
+## [0.6.0] - 2026-04-28
 - Add repository-scoped Capability Map layout density and alignment settings.
 - Apply configured Capability Map density and alignment in the live map and
   exported map layouts.
