@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+- Add repository-scoped Capability Map layout density and alignment settings.
+- Apply configured Capability Map density and alignment in the live map and
+  exported map layouts.
+- Centralize Capability Map UI defaults and align the layout fallback with the
+  repository 16:9 target aspect ratio.
+
 ## [0.5.0] - 2026-04-27
 
 - Improve large-model capability moves with a searchable Structural Actions

@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = "1.0"
 DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO = 1.7777777778
+DEFAULT_CAPABILITY_MAP_LAYOUT_DENSITY = "comfortable"
+DEFAULT_CAPABILITY_MAP_ALIGNMENT = "center"
 DEFAULT_CAPABILITY_MAP_DEPTH_COLORS = [
     "#D6E4F0",
     "#D9EAD3",
@@ -19,6 +21,8 @@ DEFAULT_CAPABILITY_MAP_DEPTH_COLORS = [
 DEFAULT_CAPABILITY_MAP_LEAF_COLOR = "#E8E8E8"
 CapabilityKind = Literal["abstract", "leaf"]
 LifecycleStatus = Literal["Draft", "Active", "Deprecated", "Retired"]
+CapabilityMapLayoutDensity = Literal["compact", "comfortable", "spacious"]
+CapabilityMapAlignment = Literal["left", "center", "right"]
 CapabilityEventAction = Literal[
     "create",
     "update",
@@ -182,6 +186,8 @@ class CapabilityMapSettings(JsonModel):
         float,
         Field(ge=0.5, le=4.0, allow_inf_nan=False),
     ] = DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO
+    layout_density: CapabilityMapLayoutDensity = DEFAULT_CAPABILITY_MAP_LAYOUT_DENSITY
+    alignment: CapabilityMapAlignment = DEFAULT_CAPABILITY_MAP_ALIGNMENT
     color_scheme: CapabilityMapColorScheme = Field(default_factory=CapabilityMapColorScheme)
 
 

@@ -104,6 +104,8 @@ function workspace(path: string): Workspace {
     settings: {
       capability_map: {
         target_aspect_ratio: 1.7777777778,
+        layout_density: 'comfortable',
+        alignment: 'center',
         color_scheme: {
           depth_colors: ['#D6E4F0', '#D9EAD3', '#E1D5E7', '#FCE5CD', '#FFF2CC', '#F4CCCC'],
           leaf_color: '#E8E8E8',

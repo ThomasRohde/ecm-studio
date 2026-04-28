@@ -23,6 +23,8 @@ def test_bridge_updates_workspace_settings(tmp_path: Path) -> None:
         {
             "capability_map": {
                 "target_aspect_ratio": 1.5,
+                "layout_density": "compact",
+                "alignment": "right",
                 "color_scheme": {
                     "depth_colors": ["#112233", "#445566"],
                     "leaf_color": "#778899",
@@ -33,6 +35,8 @@ def test_bridge_updates_workspace_settings(tmp_path: Path) -> None:
 
     assert result["ok"] is True
     assert result["data"]["settings"]["capability_map"]["target_aspect_ratio"] == 1.5
+    assert result["data"]["settings"]["capability_map"]["layout_density"] == "compact"
+    assert result["data"]["settings"]["capability_map"]["alignment"] == "right"
     assert result["data"]["settings"]["capability_map"]["color_scheme"] == {
         "depth_colors": ["#112233", "#445566"],
         "leaf_color": "#778899",

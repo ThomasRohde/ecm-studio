@@ -130,8 +130,13 @@ export interface CapabilityMapColorScheme {
   leaf_color: string;
 }
 
+export type CapabilityMapLayoutDensity = 'compact' | 'comfortable' | 'spacious';
+export type CapabilityMapAlignment = 'left' | 'center' | 'right';
+
 export interface CapabilityMapSettings {
   target_aspect_ratio: number;
+  layout_density: CapabilityMapLayoutDensity;
+  alignment: CapabilityMapAlignment;
   color_scheme: CapabilityMapColorScheme;
 }
 
@@ -141,6 +146,8 @@ export interface RepositorySettings {
 
 export interface CapabilityMapSettingsPatch {
   target_aspect_ratio?: number;
+  layout_density?: CapabilityMapLayoutDensity;
+  alignment?: CapabilityMapAlignment;
   color_scheme?: Partial<CapabilityMapColorScheme>;
 }
 

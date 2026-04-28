@@ -1,4 +1,9 @@
 import type { Capability, CapabilityMapColorScheme } from '../api/types';
+import {
+  CAPABILITY_MAP_DENSITY_LAYOUT_OPTIONS,
+  DEFAULT_CAPABILITY_MAP_ALIGNMENT,
+  DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO,
+} from '../capability-map-settings';
 
 export const CAPABILITY_MAP_ALL_ROOTS = '__ecm_capability_map_all_roots__';
 
@@ -84,18 +89,11 @@ export interface CapabilityMapRootOption {
 export type MeasureTextFn = (text: string) => number;
 
 export const DEFAULT_LAYOUT_OPTIONS: LayoutOptions = {
-  gap: 8,
-  padding: 12,
-  headerHeight: 48,
-  rootGap: 30,
-  viewMargin: 20,
-  aspectRatio: 1.6,
-  alignment: 'center',
+  ...CAPABILITY_MAP_DENSITY_LAYOUT_OPTIONS.comfortable,
+  aspectRatio: DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO,
+  alignment: DEFAULT_CAPABILITY_MAP_ALIGNMENT,
   maxDepth: -1,
   sortMode: 'subtrees',
-  minLeafWidth: 120,
-  maxLeafWidth: 200,
-  leafHeight: 55,
 };
 
 export const DEFAULT_DEPTH_COLORS = [

@@ -16,7 +16,9 @@ import { api } from '../api/bridge';
 import type {
   AuditEvent,
   BranchIntegrationCandidate,
+  CapabilityMapAlignment,
   CapabilityMapColorScheme,
+  CapabilityMapLayoutDensity,
   Checkpoint,
   GitGraphData,
   GitStatus,
@@ -27,6 +29,14 @@ import type {
   ReleaseStatus,
   RepositorySettingsPatch,
 } from '../api/types';
+import {
+  CAPABILITY_MAP_ALIGNMENT_OPTIONS,
+  CAPABILITY_MAP_LAYOUT_DENSITY_OPTIONS,
+  CAPABILITY_MAP_RATIO_PRESETS,
+  DEFAULT_CAPABILITY_MAP_ALIGNMENT,
+  DEFAULT_CAPABILITY_MAP_LAYOUT_DENSITY,
+  DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO,
+} from '../capability-map-settings';
 import { errorMessage, notify } from '../notifications/notify';
 import { useAppStore } from '../store/app-store';
 import { useSettingsStore } from '../store/settings-store';
@@ -42,14 +52,6 @@ import {
 import { DEFAULT_CAPABILITY_MAP_COLOR_SCHEME } from './capability-map-layout';
 import { GitBadges } from './GitBadges';
 
-const DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO = 1.7777777778;
-const CAPABILITY_MAP_RATIO_PRESETS = [
-  { label: '16:9', value: DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO },
-  { label: '4:3', value: 4 / 3 },
-  { label: '3:2', value: 1.5 },
-  { label: '1:1', value: 1 },
-  { label: '2:1', value: 2 },
-];
 const CUSTOM_RATIO_VALUE = 'custom';
 
 export function WorkspacePanel() {
@@ -247,29 +249,45 @@ export function RepositorySettingsPanel() {
   const savedRatio =
     savedSettings?.target_aspect_ratio ?? DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO;
   const savedRatioPresetValue = matchingRatioPresetValue(savedRatio);
+  const savedLayoutDensity = savedSettings?.layout_density ?? DEFAULT_CAPABILITY_MAP_LAYOUT_DENSITY;
+  const savedAlignment = savedSettings?.alignment ?? DEFAULT_CAPABILITY_MAP_ALIGNMENT;
   const savedColorScheme = savedSettings?.color_scheme ?? DEFAULT_CAPABILITY_MAP_COLOR_SCHEME;
   const [ratioPresetValue, setRatioPresetValue] = useState(savedRatioPresetValue);
+  const [layoutDensity, setLayoutDensity] =
+    useState<CapabilityMapLayoutDensity>(savedLayoutDensity);
+  const [alignment, setAlignment] = useState<CapabilityMapAlignment>(savedAlignment);
   const [colorScheme, setColorScheme] = useState<CapabilityMapColorScheme>(() =>
     cloneCapabilityMapColorScheme(savedColorScheme),
   );
 
   useEffect(() => {
     setRatioPresetValue(savedRatioPresetValue);
+    setLayoutDensity(savedLayoutDensity);
+    setAlignment(savedAlignment);
     setColorScheme(cloneCapabilityMapColorScheme(savedColorScheme));
-  }, [savedRatioPresetValue, savedColorScheme, workspace?.path]);
+  }, [
+    savedRatioPresetValue,
+    savedLayoutDensity,
+    savedAlignment,
+    savedColorScheme,
+    workspace?.path,
+  ]);
 
   const selectedRatio =
     ratioPresetValue === CUSTOM_RATIO_VALUE ? savedRatio : Number(ratioPresetValue);
   const ratioDirty =
     ratioPresetValue !== CUSTOM_RATIO_VALUE && Math.abs(selectedRatio - savedRatio) > 0.000001;
+  const layoutDirty = layoutDensity !== savedLayoutDensity || alignment !== savedAlignment;
   const colorDirty = !sameCapabilityMapColorScheme(colorScheme, savedColorScheme);
-  const dirty = ratioDirty || colorDirty;
+  const dirty = ratioDirty || layoutDirty || colorDirty;
 
   async function saveRepositorySettings() {
     if (!workspace) return;
     const patch: RepositorySettingsPatch = {
       capability_map: {
         target_aspect_ratio: selectedRatio,
+        layout_density: layoutDensity,
+        alignment,
         color_scheme: cloneCapabilityMapColorScheme(colorScheme),
       },
     };
@@ -319,6 +337,36 @@ export function RepositorySettingsPanel() {
             {ratioPresetValue === CUSTOM_RATIO_VALUE ? (
               <option value={CUSTOM_RATIO_VALUE}>Custom</option>
             ) : null}
+          </select>
+        </label>
+        <label className="field-label">
+          Layout density
+          <select
+            className="select"
+            disabled={!workspace}
+            value={layoutDensity}
+            onChange={(event) => setLayoutDensity(event.target.value as CapabilityMapLayoutDensity)}
+          >
+            {CAPABILITY_MAP_LAYOUT_DENSITY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field-label">
+          Alignment
+          <select
+            className="select"
+            disabled={!workspace}
+            value={alignment}
+            onChange={(event) => setAlignment(event.target.value as CapabilityMapAlignment)}
+          >
+            {CAPABILITY_MAP_ALIGNMENT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </label>
 

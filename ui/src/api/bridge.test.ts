@@ -49,6 +49,8 @@ describe('bridge mock fallback', () => {
 
     expect(workspace.name).toBe('Demo');
     expect(workspace.settings.capability_map.target_aspect_ratio).toBe(1.7777777778);
+    expect(workspace.settings.capability_map.layout_density).toBe('comfortable');
+    expect(workspace.settings.capability_map.alignment).toBe('center');
     expect(workspace.settings.capability_map.color_scheme).toEqual({
       depth_colors: ['#D6E4F0', '#D9EAD3', '#E1D5E7', '#FCE5CD', '#FFF2CC', '#F4CCCC'],
       leaf_color: '#E8E8E8',
@@ -64,6 +66,8 @@ describe('bridge mock fallback', () => {
     const workspace = await api.workspace.updateSettings({
       capability_map: {
         target_aspect_ratio: 1.5,
+        layout_density: 'spacious',
+        alignment: 'left',
         color_scheme: {
           depth_colors: ['#112233', '#445566'],
           leaf_color: '#778899',
@@ -72,6 +76,8 @@ describe('bridge mock fallback', () => {
     });
 
     expect(workspace.settings.capability_map.target_aspect_ratio).toBe(1.5);
+    expect(workspace.settings.capability_map.layout_density).toBe('spacious');
+    expect(workspace.settings.capability_map.alignment).toBe('left');
     expect(workspace.settings.capability_map.color_scheme).toEqual({
       depth_colors: ['#112233', '#445566'],
       leaf_color: '#778899',

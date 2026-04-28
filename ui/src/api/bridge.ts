@@ -1,3 +1,10 @@
+import {
+  DEFAULT_CAPABILITY_MAP_ALIGNMENT,
+  DEFAULT_CAPABILITY_MAP_LAYOUT_DENSITY,
+  DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO,
+  isCapabilityMapAlignment,
+  isCapabilityMapLayoutDensity,
+} from '../capability-map-settings';
 import type {
   AppInfo,
   AppSettings,
@@ -45,7 +52,6 @@ declare global {
 }
 
 const PYWEBVIEW_READY_TIMEOUT_MS = 5000;
-const DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO = 1.7777777778;
 const DEFAULT_CAPABILITY_MAP_DEPTH_COLORS = [
   '#D6E4F0',
   '#D9EAD3',
@@ -102,6 +108,8 @@ function defaultRepositorySettings(): RepositorySettings {
   return {
     capability_map: {
       target_aspect_ratio: DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO,
+      layout_density: DEFAULT_CAPABILITY_MAP_LAYOUT_DENSITY,
+      alignment: DEFAULT_CAPABILITY_MAP_ALIGNMENT,
       color_scheme: defaultCapabilityMapColorScheme(),
     },
   };
@@ -116,15 +124,22 @@ function defaultCapabilityMapColorScheme(): CapabilityMapColorScheme {
 
 function normalizeRepositorySettings(settings?: RepositorySettings | null): RepositorySettings {
   const defaults = defaultRepositorySettings();
+  const capabilityMap = settings?.capability_map;
   return {
     capability_map: {
       ...defaults.capability_map,
-      ...settings?.capability_map,
+      ...capabilityMap,
+      layout_density: isCapabilityMapLayoutDensity(capabilityMap?.layout_density)
+        ? capabilityMap.layout_density
+        : defaults.capability_map.layout_density,
+      alignment: isCapabilityMapAlignment(capabilityMap?.alignment)
+        ? capabilityMap.alignment
+        : defaults.capability_map.alignment,
       color_scheme: {
         ...defaults.capability_map.color_scheme,
-        ...settings?.capability_map?.color_scheme,
-        depth_colors: settings?.capability_map?.color_scheme?.depth_colors?.length
-          ? [...settings.capability_map.color_scheme.depth_colors]
+        ...capabilityMap?.color_scheme,
+        depth_colors: capabilityMap?.color_scheme?.depth_colors?.length
+          ? [...capabilityMap.color_scheme.depth_colors]
           : defaults.capability_map.color_scheme.depth_colors,
       },
     },
@@ -255,6 +270,8 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
     const workspace = await mockCall<Workspace>('workspace_status', []);
     const patch = args[0] as RepositorySettingsPatch;
     const targetAspectRatio = patch.capability_map?.target_aspect_ratio;
+    const layoutDensity = patch.capability_map?.layout_density;
+    const alignment = patch.capability_map?.alignment;
     const colorSchemePatch = patch.capability_map?.color_scheme;
     if (targetAspectRatio !== undefined) {
       if (!Number.isFinite(targetAspectRatio) || targetAspectRatio < 0.5 || targetAspectRatio > 4) {
@@ -267,6 +284,34 @@ async function mockCall<T>(method: string, args: unknown[]): Promise<T> {
         capability_map: {
           ...workspace.settings.capability_map,
           target_aspect_ratio: targetAspectRatio,
+        },
+      };
+    }
+    if (layoutDensity !== undefined) {
+      if (!isCapabilityMapLayoutDensity(layoutDensity)) {
+        throw new Error(
+          'VALIDATION_FAILED: Capability map layout density must be compact, comfortable, or spacious.',
+        );
+      }
+      workspace.settings = {
+        ...workspace.settings,
+        capability_map: {
+          ...workspace.settings.capability_map,
+          layout_density: layoutDensity,
+        },
+      };
+    }
+    if (alignment !== undefined) {
+      if (!isCapabilityMapAlignment(alignment)) {
+        throw new Error(
+          'VALIDATION_FAILED: Capability map alignment must be left, center, or right.',
+        );
+      }
+      workspace.settings = {
+        ...workspace.settings,
+        capability_map: {
+          ...workspace.settings.capability_map,
+          alignment,
         },
       };
     }

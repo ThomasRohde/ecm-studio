@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Capability } from '../api/types';
+import { capabilityMapDensityLayoutOptions } from '../capability-map-settings';
 import { useAppStore } from '../store/app-store';
 import {
   CAPABILITY_MAP_ALL_ROOTS,
@@ -81,6 +82,52 @@ describe('capability map layout', () => {
     expect(compact!.totalWidth).toBeLessThan(wide!.totalWidth);
     expect(compact!.totalHeight).toBeGreaterThan(wide!.totalHeight);
     expect(compact!.totalWidth / compact!.totalHeight).toBeLessThan(4);
+  });
+
+  it('applies layout density presets to the map geometry', () => {
+    const compact = layoutCapabilityMap(capabilityModel(), {
+      layoutOptions: capabilityMapDensityLayoutOptions('compact'),
+    });
+    const spacious = layoutCapabilityMap(capabilityModel(), {
+      layoutOptions: capabilityMapDensityLayoutOptions('spacious'),
+    });
+
+    expect(compact).not.toBeNull();
+    expect(spacious).not.toBeNull();
+    expect(compact!.leafSize.w).toBeLessThan(spacious!.leafSize.w);
+    expect(compact!.leafSize.h).toBeLessThan(spacious!.leafSize.h);
+    expect(compact!.totalWidth).toBeLessThan(spacious!.totalWidth);
+    expect(compact!.totalHeight).toBeLessThan(spacious!.totalHeight);
+  });
+
+  it('aligns shorter child rows left, center, or right inside a parent', () => {
+    const model = [
+      capability('root', 'Root', 0, null, [
+        capability('first', 'First', 0, 'root'),
+        capability('second', 'Second', 1, 'root'),
+        capability('third', 'Third', 2, 'root'),
+      ]),
+    ];
+
+    const left = layoutCapabilityMap(model, {
+      rootId: 'root',
+      layoutOptions: { alignment: 'left' },
+    });
+    const center = layoutCapabilityMap(model, {
+      rootId: 'root',
+      layoutOptions: { alignment: 'center' },
+    });
+    const right = layoutCapabilityMap(model, {
+      rootId: 'root',
+      layoutOptions: { alignment: 'right' },
+    });
+
+    const leftThird = left!.nodes.find((node) => node.id === 'third')!;
+    const centerThird = center!.nodes.find((node) => node.id === 'third')!;
+    const rightThird = right!.nodes.find((node) => node.id === 'third')!;
+
+    expect(leftThird.position.x).toBeLessThan(centerThird.position.x);
+    expect(centerThird.position.x).toBeLessThan(rightThird.position.x);
   });
 
   it('uses depth colors for parents and the configured leaf color for effective leaves', () => {

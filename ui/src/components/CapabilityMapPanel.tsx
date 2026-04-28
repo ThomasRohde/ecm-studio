@@ -13,6 +13,12 @@ import { ArrowDownloadRegular, ZoomFitRegular } from '@fluentui/react-icons';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/bridge';
 import type { CapabilityMapColorScheme, MapExportFormat } from '../api/types';
+import {
+  capabilityMapDensityLayoutOptions,
+  DEFAULT_CAPABILITY_MAP_ALIGNMENT,
+  DEFAULT_CAPABILITY_MAP_LAYOUT_DENSITY,
+  DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO,
+} from '../capability-map-settings';
 import { errorMessage, notify } from '../notifications/notify';
 import { useAppStore } from '../store/app-store';
 import {
@@ -38,7 +44,6 @@ const PARENT_FONT = '13px "Segoe UI", system-ui, sans-serif';
 const LEAF_FONT = '11px "Segoe UI", system-ui, sans-serif';
 const SELECTED_STROKE = 'var(--accent)';
 const DEFAULT_STROKE = '#CCCCCC';
-const DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO = 1.7777777778;
 
 export function CapabilityMapPanel() {
   const workspace = useAppStore((state) => state.workspace);
@@ -58,6 +63,10 @@ export function CapabilityMapPanel() {
   const targetAspectRatio =
     workspace?.settings.capability_map.target_aspect_ratio ??
     DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO;
+  const layoutDensity =
+    workspace?.settings.capability_map.layout_density ?? DEFAULT_CAPABILITY_MAP_LAYOUT_DENSITY;
+  const alignment =
+    workspace?.settings.capability_map.alignment ?? DEFAULT_CAPABILITY_MAP_ALIGNMENT;
   const colorScheme =
     workspace?.settings.capability_map.color_scheme ?? DEFAULT_CAPABILITY_MAP_COLOR_SCHEME;
   const visibleRootOptions = useMemo(
@@ -69,9 +78,13 @@ export function CapabilityMapPanel() {
       layoutCapabilityMap(tree, {
         rootId,
         maxDepth,
-        layoutOptions: { aspectRatio: targetAspectRatio },
+        layoutOptions: {
+          ...capabilityMapDensityLayoutOptions(layoutDensity),
+          aspectRatio: targetAspectRatio,
+          alignment,
+        },
       }),
-    [tree, rootId, maxDepth, targetAspectRatio],
+    [tree, rootId, maxDepth, targetAspectRatio, layoutDensity, alignment],
   );
 
   useEffect(() => {

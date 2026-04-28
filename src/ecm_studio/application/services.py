@@ -1284,6 +1284,8 @@ def _merge_repository_settings_patch(
             raise ValidationFailed("Capability map settings must be an object.")
         unknown_map_fields = set(capability_map_patch) - {
             "target_aspect_ratio",
+            "layout_density",
+            "alignment",
             "color_scheme",
         }
         if unknown_map_fields:

@@ -5,6 +5,7 @@
   "schema_version": "1.0",
   "settings": {
     "capability_map": {
+      "alignment": "left",
       "color_scheme": {
         "depth_colors": [
           "#D6E4F0",
@@ -16,8 +17,9 @@
         ],
         "leaf_color": "#E8E8E8"
       },
-      "target_aspect_ratio": 1.0
+      "layout_density": "comfortable",
+      "target_aspect_ratio": 1.3333333333333333
     }
   },
-  "updated_at": "2026-04-26T15:19:38Z"
+  "updated_at": "2026-04-28T04:04:41Z"
 }

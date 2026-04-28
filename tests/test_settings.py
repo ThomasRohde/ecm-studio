@@ -9,7 +9,9 @@ from ecm_studio.application.services import AppServices
 from ecm_studio.desktop.theme import apply_windows_chrome_theme
 from ecm_studio.domain.errors import SettingsWriteFailed, ValidationFailed
 from ecm_studio.domain.models import (
+    DEFAULT_CAPABILITY_MAP_ALIGNMENT,
     DEFAULT_CAPABILITY_MAP_DEPTH_COLORS,
+    DEFAULT_CAPABILITY_MAP_LAYOUT_DENSITY,
     DEFAULT_CAPABILITY_MAP_LEAF_COLOR,
     DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO,
 )
@@ -136,6 +138,11 @@ def test_workspace_config_defaults_repository_settings(tmp_path: Path) -> None:
         == DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO
     )
     assert (
+        config.settings.capability_map.layout_density
+        == DEFAULT_CAPABILITY_MAP_LAYOUT_DENSITY
+    )
+    assert config.settings.capability_map.alignment == DEFAULT_CAPABILITY_MAP_ALIGNMENT
+    assert (
         config.settings.capability_map.color_scheme.depth_colors
         == DEFAULT_CAPABILITY_MAP_DEPTH_COLORS
     )
@@ -148,6 +155,14 @@ def test_workspace_config_defaults_repository_settings(tmp_path: Path) -> None:
     assert (
         raw["settings"]["capability_map"]["target_aspect_ratio"]
         == DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO
+    )
+    assert (
+        raw["settings"]["capability_map"]["layout_density"]
+        == DEFAULT_CAPABILITY_MAP_LAYOUT_DENSITY
+    )
+    assert (
+        raw["settings"]["capability_map"]["alignment"]
+        == DEFAULT_CAPABILITY_MAP_ALIGNMENT
     )
     assert (
         raw["settings"]["capability_map"]["color_scheme"]["depth_colors"]
@@ -182,6 +197,11 @@ def test_workspace_config_reads_legacy_config_without_settings(tmp_path: Path) -
         == DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO
     )
     assert (
+        config.settings.capability_map.layout_density
+        == DEFAULT_CAPABILITY_MAP_LAYOUT_DENSITY
+    )
+    assert config.settings.capability_map.alignment == DEFAULT_CAPABILITY_MAP_ALIGNMENT
+    assert (
         config.settings.capability_map.color_scheme.depth_colors
         == DEFAULT_CAPABILITY_MAP_DEPTH_COLORS
     )
@@ -203,6 +223,23 @@ def test_workspace_settings_update_persists_tracked_config(tmp_path: Path) -> No
     assert updated["settings"]["capability_map"]["target_aspect_ratio"] == 4 / 3
     raw = json.loads((workspace_root / "ecm-studio.json").read_text(encoding="utf-8"))
     assert raw["settings"]["capability_map"]["target_aspect_ratio"] == 4 / 3
+
+
+def test_workspace_settings_update_persists_map_layout_settings(tmp_path: Path) -> None:
+    services = AppServices(settings_path=tmp_path / "settings.json")
+    workspace_root = tmp_path / "workspace"
+    services.workspace.init(str(workspace_root), "Settings")
+
+    updated = services.workspace.update_settings(
+        {"capability_map": {"layout_density": "spacious", "alignment": "left"}}
+    )
+
+    capability_map = updated["settings"]["capability_map"]
+    assert capability_map["layout_density"] == "spacious"
+    assert capability_map["alignment"] == "left"
+    raw = json.loads((workspace_root / "ecm-studio.json").read_text(encoding="utf-8"))
+    assert raw["settings"]["capability_map"]["layout_density"] == "spacious"
+    assert raw["settings"]["capability_map"]["alignment"] == "left"
 
 
 def test_workspace_settings_update_persists_color_scheme(tmp_path: Path) -> None:
@@ -261,6 +298,24 @@ def test_workspace_settings_reject_invalid_aspect_ratio(tmp_path: Path) -> None:
         services.workspace.update_settings(
             {"capability_map": {"target_aspect_ratio": 4.5}}
         )
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"layout_density": "dense"},
+        {"alignment": "middle"},
+    ],
+)
+def test_workspace_settings_reject_invalid_layout_settings(
+    tmp_path: Path,
+    patch: dict[str, object],
+) -> None:
+    services = AppServices(settings_path=tmp_path / "settings.json")
+    services.workspace.init(str(tmp_path / "workspace"), "Settings")
+
+    with pytest.raises(ValidationFailed):
+        services.workspace.update_settings({"capability_map": patch})
 
 
 @pytest.mark.parametrize(
