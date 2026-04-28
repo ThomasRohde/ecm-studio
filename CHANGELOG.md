@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.0] - 2026-04-28
+
+- Expand ECM repository agent skills for validation, capability management,
+  bulk planning, impact analysis, governance review, imports, diffs, quality
+  checks, and release preparation.
+- Install the bundled `.agents/skills` tree when creating new workspaces while
+  preserving existing workspace skill customizations.
+- Package bundled ECM skills in PyInstaller and wheel builds so executable and
+  PyPI installs behave consistently.
+- Add the ECM Studio Capability View Designer PRD for implementation planning.
+
 ## [0.6.0] - 2026-04-28
 - Add repository-scoped Capability Map layout density and alignment settings.
 - Apply configured Capability Map density and alignment in the live map and
