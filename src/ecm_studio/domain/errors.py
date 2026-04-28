@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 
@@ -15,6 +16,18 @@ class AppError(Exception):
 class ValidationFailed(AppError):
     def __init__(self, message: str, detail: Any | None = None) -> None:
         super().__init__("VALIDATION_FAILED", message, detail)
+
+
+class SettingsWriteFailed(AppError):
+    def __init__(self, path: Path, cause: OSError) -> None:
+        super().__init__(
+            "SETTINGS_WRITE_FAILED",
+            (
+                f'Could not save app settings at "{path}". '
+                "The file may be temporarily locked or not writable."
+            ),
+            {"path": str(path), "reason": str(cause)},
+        )
 
 
 class WorkspaceNotOpen(AppError):

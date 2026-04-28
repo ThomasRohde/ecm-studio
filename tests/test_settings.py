@@ -7,12 +7,13 @@ import pytest
 
 from ecm_studio.application.services import AppServices
 from ecm_studio.desktop.theme import apply_windows_chrome_theme
-from ecm_studio.domain.errors import ValidationFailed
+from ecm_studio.domain.errors import SettingsWriteFailed, ValidationFailed
 from ecm_studio.domain.models import (
     DEFAULT_CAPABILITY_MAP_DEPTH_COLORS,
     DEFAULT_CAPABILITY_MAP_LEAF_COLOR,
     DEFAULT_CAPABILITY_MAP_TARGET_ASPECT_RATIO,
 )
+from ecm_studio.infrastructure import settings as settings_module
 from ecm_studio.infrastructure.settings import SettingsRepository, resolve_theme
 from ecm_studio.infrastructure.workspace import WorkspaceRepository
 
@@ -70,6 +71,49 @@ def test_settings_reads_legacy_path_when_new_file_is_missing(tmp_path: Path) -> 
     assert new_path.exists()
     assert json.loads(new_path.read_text(encoding="utf-8"))["theme_mode"] == "light"
     assert legacy_path.exists()
+
+
+def test_settings_write_retries_transient_permission_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = SettingsRepository(tmp_path / ".ecms" / "settings.json")
+    real_replace = settings_module.os.replace
+    attempts = 0
+
+    def flaky_replace(src: str | bytes | Path, dst: str | bytes | Path) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise PermissionError(13, "Permission denied", str(dst))
+        real_replace(src, dst)
+
+    monkeypatch.setattr(settings_module.os, "replace", flaky_replace)
+    monkeypatch.setattr(settings_module.time, "sleep", lambda _: None)
+
+    updated = repo.update(theme_mode="dark")
+
+    assert attempts == 2
+    assert updated.theme_mode == "dark"
+    assert json.loads(repo.path.read_text(encoding="utf-8"))["theme_mode"] == "dark"
+
+
+def test_settings_write_failure_preserves_existing_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = SettingsRepository(tmp_path / ".ecms" / "settings.json")
+    repo.update(theme_mode="dark")
+
+    def blocked_replace(src: str | bytes | Path, dst: str | bytes | Path) -> None:
+        raise PermissionError(13, "Permission denied", str(dst))
+
+    monkeypatch.setattr(settings_module.os, "replace", blocked_replace)
+    monkeypatch.setattr(settings_module.time, "sleep", lambda _: None)
+
+    with pytest.raises(SettingsWriteFailed):
+        repo.update(theme_mode="light")
+
+    assert repo.load().theme_mode == "dark"
+    assert not list(repo.path.parent.glob(".settings.json.*.tmp"))
 
 
 def test_system_theme_resolution_has_safe_fallback() -> None:
