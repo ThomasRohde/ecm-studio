@@ -1,0 +1,1 @@
+{"_t":"capability_version","schema_version":"1.0","id":"event-retire","capability_id":"cap-legacy","action":"retire","summary":"Retired capability \"Legacy Payments\".","before":null,"after":null,"patch":{},"actor":"local","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}

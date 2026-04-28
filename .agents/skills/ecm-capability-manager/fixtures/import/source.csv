@@ -1,0 +1,3 @@
+Stable ID,Capability Name,Parent ID,Domain,Description,Tags,Owner
+cap-sales,Sales,,Commercial,Manage sales capabilities,sales;commercial,owner-sales
+cap-lead,Lead Management,cap-sales,Commercial,Manage leads and qualification,sales;lead,owner-sales

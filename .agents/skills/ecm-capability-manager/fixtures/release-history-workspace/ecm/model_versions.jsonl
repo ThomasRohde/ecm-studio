@@ -1,0 +1,1 @@
+{"_t":"model_version","schema_version":"1.0","id":"model-1","action":"release","summary":"Released ecm-v1.0.0.","capability_count":1,"version_label":"1.0.0","tag":"ecm-v1.0.0","state":"released","export_paths":["ecm/exports/ecm-v1.0.0/capabilities.jsonl"],"released_at":"2026-01-01T00:00:00Z","actor":"local","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}

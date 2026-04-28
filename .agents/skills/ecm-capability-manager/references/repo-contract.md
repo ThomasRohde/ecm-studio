@@ -6,14 +6,16 @@ Use this reference when you need to reason about ECM model repositories outside 
 
 - `ecm-studio.json`
 - `ecm\capabilities.jsonl`
-- append-only audit/history files under `ecm\`
+- append-only audit/history files under `ecm\`, especially:
+  - `ecm\capability_versions.jsonl`
+  - `ecm\model_versions.jsonl`
+  - `ecm\publish_events.jsonl`
 
 ## Derived files
 
 - `.ecm-studio\`
-- `*.sqlite`
-- `*.sqlite-wal`
-- `*.sqlite-shm`
+- `.ecm-studio\cache\ecm.sqlite`
+- `*.sqlite`, `*.sqlite-wal`, `*.sqlite-shm`
 
 Do not edit derived files. They are local runtime state and can be rebuilt.
 
@@ -30,11 +32,14 @@ Do not edit derived files. They are local runtime state and can be rebuilt.
    - retire requires rationale,
    - merge requires rationale and may create a replacement link,
    - delete is only valid for Draft leaves.
+7. Durable records in `ecm\capabilities.jsonl` must use `_t: "capability"` and `schema_version: "1.0"` so ECM Studio can load them without import-mode defaults.
 
 ## Mutation expectations
 
 - Prefer deterministic rewrites of `ecm\capabilities.jsonl` over ad hoc line edits.
+- Save capability records in depth-first tree order, matching ECM Studio's repository writer.
 - Keep audit files append-only when recording events.
 - Revalidate after capability mutations.
 - Never set `replacement_capability_id` to the same capability ID.
+- Expect ECM Studio to rebuild the SQLite projection on workspace open or explicit rebuild after file-based mutations.
 

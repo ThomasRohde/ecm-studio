@@ -1,0 +1,1 @@
+{"_t":"capability_version","schema_version":"1.0","id":"event-release","capability_id":"cap-release","action":"update","summary":"Updated release capability.","before":null,"after":null,"patch":{"description":"Capability used to test release readiness."},"actor":"local","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}

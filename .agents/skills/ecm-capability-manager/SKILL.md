@@ -1,10 +1,14 @@
 ---
 name: ecm-capability-manager
 description: Safely create, update, move, retire, merge, and delete capabilities in ECM Studio repositories that store authoritative data in ecm/capabilities.jsonl and ecm-studio.json. Use this whenever the user asks to add capabilities, rename or reparent capabilities, change lifecycle state, merge duplicates, delete mistaken draft leaves, or otherwise modify capability data in an ECM repo, even if they do not mention JSONL files or ECM Studio by name.
-compatibility: Works in ECM workspace repositories with ecm-studio.json and ecm/*.jsonl. Prefer the bundled Python helper when Python is available.
 ---
 
 Use this skill for **file-based ECM model maintenance outside the ECM Studio desktop app**.
+
+It targets ECM workspace repositories with `ecm-studio.json` and `ecm/*.jsonl`.
+Prefer the bundled Python helper when Python is available. The helper mirrors the
+current ECM Studio domain rules for capability JSONL writes, audit events, depth-first
+ordering, and computed capability `type`.
 
 ## Start with the repository contract
 
@@ -14,23 +18,23 @@ The important idea is that this repo's source of truth is the JSONL model under 
 
 ## Preferred workflow
 
-1. Confirm the current directory is an ECM workspace by checking for `ecm-studio.json` and `ecm\capabilities.jsonl`.
+1. Confirm the target directory is an ECM workspace by checking for `ecm-studio.json` and `ecm\capabilities.jsonl`. If the current directory is not the target workspace, pass `--workspace "<path-to-workspace>"` to the helper commands.
 2. Run the bundled validator first:
 
    ```powershell
-   python .github\skills\ecm-capability-manager\scripts\ecm_repo.py validate
+   python .agents\skills\ecm-capability-manager\scripts\ecm_repo.py validate
    ```
 
 3. If you need IDs or paths, list capabilities first:
 
    ```powershell
-   python .github\skills\ecm-capability-manager\scripts\ecm_repo.py list
+   python .agents\skills\ecm-capability-manager\scripts\ecm_repo.py list
    ```
 
    Or narrow it down:
 
    ```powershell
-   python .github\skills\ecm-capability-manager\scripts\ecm_repo.py list --name Payments
+   python .agents\skills\ecm-capability-manager\scripts\ecm_repo.py list --name Payments
    ```
 
 4. Use the helper script for mutations whenever possible. It preserves the ECM invariants and appends capability audit events.
@@ -43,7 +47,7 @@ The important idea is that this repo's source of truth is the JSONL model under 
 Use this to add a new top-level capability or a child under an existing parent.
 
 ```powershell
-python .github\skills\ecm-capability-manager\scripts\ecm_repo.py create `
+python .agents\skills\ecm-capability-manager\scripts\ecm_repo.py create `
   --name "Payments" `
   --domain "Banking" `
   --tag finance `
@@ -53,7 +57,7 @@ python .github\skills\ecm-capability-manager\scripts\ecm_repo.py create `
 Child example:
 
 ```powershell
-python .github\skills\ecm-capability-manager\scripts\ecm_repo.py create `
+python .agents\skills\ecm-capability-manager\scripts\ecm_repo.py create `
   --name "Domestic Payments" `
   --parent-id "<parent-capability-id>" `
   --domain "Banking"
@@ -69,7 +73,7 @@ Notes:
 Use this for non-structural edits such as names, descriptions, domains, lifecycle status, aliases, tags, steward data, or replacement links.
 
 ```powershell
-python .github\skills\ecm-capability-manager\scripts\ecm_repo.py update `
+python .agents\skills\ecm-capability-manager\scripts\ecm_repo.py update `
   --id "<capability-id>" `
   --name "Customer Activation" `
   --domain "Customer Experience" `
@@ -90,7 +94,7 @@ Use the matching `--clear-*` flag when the user wants to empty one of those list
 Use this when the user wants to reparent a capability or change sibling order.
 
 ```powershell
-python .github\skills\ecm-capability-manager\scripts\ecm_repo.py move `
+python .agents\skills\ecm-capability-manager\scripts\ecm_repo.py move `
   --id "<capability-id>" `
   --parent-id "<new-parent-id>" `
   --order 0
@@ -103,7 +107,7 @@ If the user wants a capability moved to the top level, omit `--parent-id`.
 Use retirement when the capability should remain in history but no longer be used.
 
 ```powershell
-python .github\skills\ecm-capability-manager\scripts\ecm_repo.py retire `
+python .agents\skills\ecm-capability-manager\scripts\ecm_repo.py retire `
   --id "<capability-id>" `
   --rationale "Replaced by the unified payments capability." `
   --replacement-capability-id "<replacement-id>"
@@ -116,7 +120,7 @@ Capture `downstream_handling` when the user supplies it so the audit event recor
 Use delete only when the capability is both `Draft` and a leaf.
 
 ```powershell
-python .github\skills\ecm-capability-manager\scripts\ecm_repo.py delete `
+python .agents\skills\ecm-capability-manager\scripts\ecm_repo.py delete `
   --id "<capability-id>" `
   --rationale "Created by mistake."
 ```
@@ -128,7 +132,7 @@ If the capability is not a draft leaf, stop and use retire or merge instead.
 Use merge when one capability should survive and absorb another.
 
 ```powershell
-python .github\skills\ecm-capability-manager\scripts\ecm_repo.py merge `
+python .agents\skills\ecm-capability-manager\scripts\ecm_repo.py merge `
   --source-id "<duplicate-id>" `
   --survivor-id "<canonical-id>" `
   --rationale "Duplicate model entry."
@@ -156,6 +160,13 @@ If you fall back to manual editing:
 4. keep capability names unique after trim/lower/whitespace normalization,
 5. keep `ecm\capability_versions.jsonl` append-only if you record audit events,
 6. validate again before finishing.
+
+## ECM Studio app coordination
+
+- Do not edit `.ecm-studio\` or SQLite projection files. The desktop app treats those as rebuildable runtime state.
+- After helper-based file mutations, the app may show the SQLite index as stale until the workspace is opened, refreshed, or the index is rebuilt from the app diagnostics/workspace action.
+- If ECM Studio is already open on the workspace, refresh or reopen the workspace before trusting search results or tree views.
+- Keep Git changes limited to `ecm-studio.json`, `.gitignore`, and `ecm\` unless the user explicitly asks for other files.
 
 ## Output expectations
 

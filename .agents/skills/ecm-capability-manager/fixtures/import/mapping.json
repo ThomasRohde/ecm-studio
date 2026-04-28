@@ -1,0 +1,1 @@
+{"fields":{"id":"Stable ID","name":"Capability Name","parent_id":"Parent ID","domain":"Domain","description":"Description","tags":"Tags","steward_id":"Owner"},"defaults":{"lifecycle_status":"Draft"},"split_fields":{"tags":";"},"id_prefix":"cap-"}
