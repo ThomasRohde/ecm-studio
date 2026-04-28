@@ -11,6 +11,7 @@ a = Analysis(
     binaries=[],
     datas=[
         (str(root / "ui" / "dist"), "ecm_studio/assets/ui"),
+        (str(root / ".agents" / "skills"), "ecm_studio/assets/agents/skills"),
         (str(root / "packaging" / "assets" / "ecm-studio.ico"), "ecm_studio/assets"),
     ],
     hiddenimports=["webview.platforms.edgechromium"],

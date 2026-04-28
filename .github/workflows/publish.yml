@@ -68,16 +68,28 @@ jobs:
         working-directory: ui
       - run: npm run build
         working-directory: ui
-      - name: Stage UI assets for package build
+      - name: Stage package assets
         run: |
           rm -rf src/ecm_studio/assets/ui
+          rm -rf src/ecm_studio/assets/agents/skills
           mkdir -p src/ecm_studio/assets
+          mkdir -p src/ecm_studio/assets/agents
           cp -R ui/dist src/ecm_studio/assets/ui
+          cp -R .agents/skills src/ecm_studio/assets/agents/skills
       - run: pip install -e .[dev]
       - run: hatch build
       - run: twine check dist/*
-      - name: Verify packaged UI assets
-        run: python -c "import zipfile; wheel = next(__import__('pathlib').Path('dist').glob('*.whl')); assert 'ecm_studio/assets/ui/index.html' in zipfile.ZipFile(wheel).namelist()"
+      - name: Verify packaged assets
+        run: |
+          python - <<'PY'
+          import pathlib
+          import zipfile
+
+          wheel = next(pathlib.Path("dist").glob("*.whl"))
+          names = set(zipfile.ZipFile(wheel).namelist())
+          assert "ecm_studio/assets/ui/index.html" in names
+          assert "ecm_studio/assets/agents/skills/ecm-capability-manager/SKILL.md" in names
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: pypi-dist

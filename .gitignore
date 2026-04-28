@@ -18,6 +18,7 @@ build/
 dist/
 !packaging/*.spec
 src/ecm_studio/assets/ui/
+src/ecm_studio/assets/agents/
 
 # ECM runtime state
 .ecms/

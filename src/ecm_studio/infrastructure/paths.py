@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 CONFIG_FILE = "ecm-studio.json"
+AGENT_SKILLS_DIR = ".agents/skills"
 STUDIO_DIR = ".ecm-studio"
 CACHE_DIR = ".ecm-studio/cache"
 LOGS_DIR = ".ecm-studio/logs"
@@ -23,6 +24,7 @@ MANAGED_PATHS = [
     CONFIG_FILE,
     ".gitignore",
     ECM_DIR,
+    AGENT_SKILLS_DIR,
 ]
 
 JSONL_FILES = [

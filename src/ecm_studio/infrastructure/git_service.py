@@ -141,8 +141,9 @@ class GitService:
 
     def checkpoint(self, message: str, paths: Iterable[str] | None = None) -> Checkpoint:
         self.init()
-        add_paths = list(paths or MANAGED_PATHS)
-        self._git("add", "--", *add_paths)
+        add_paths = self._checkpoint_paths(paths)
+        if add_paths:
+            self._git("add", "--", *add_paths)
         staged = self._git("diff", "--cached", "--name-only").stdout.strip()
         if not staged:
             latest = self._latest_checkpoint()
@@ -158,6 +159,14 @@ class GitService:
         if latest is None:
             raise AppError("GIT_FAILED", "Checkpoint was created but could not be read.")
         return latest
+
+    def _checkpoint_paths(self, paths: Iterable[str] | None) -> list[str]:
+        add_paths = list(paths or MANAGED_PATHS)
+        return [
+            path
+            for path in add_paths
+            if (self.repo_path / path).exists() or self._tracked_path_exists(path)
+        ]
 
     def history(self, limit: int = 50) -> list[Checkpoint]:
         if not self.is_repo():
@@ -413,6 +422,10 @@ class GitService:
     def _latest_checkpoint(self) -> Checkpoint | None:
         history = self.history(1)
         return history[0] if history else None
+
+    def _tracked_path_exists(self, path: str) -> bool:
+        result = self._run_git("ls-files", "--", path, check=False)
+        return result.returncode == 0 and bool(result.stdout.strip())
 
     def _parse_graph_log(self, output: str) -> list[dict]:
         fields = output.split("\x00")

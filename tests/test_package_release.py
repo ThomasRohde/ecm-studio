@@ -7,6 +7,25 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_pyinstaller_spec_bundles_agent_skills() -> None:
+    spec = (ROOT / "packaging" / "ecms.spec").read_text(encoding="utf-8")
+
+    assert 'root / ".agents" / "skills"' in spec
+    assert "ecm_studio/assets/agents/skills" in spec
+
+
+def test_publish_workflow_stages_and_verifies_agent_skills() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "cp -R .agents/skills src/ecm_studio/assets/agents/skills" in workflow
+    assert (
+        "ecm_studio/assets/agents/skills/ecm-capability-manager/SKILL.md"
+        in workflow
+    )
+
+
 def test_release_helper_dry_run_reports_release_steps() -> None:
     result = subprocess.run(
         [sys.executable, "scripts/release.py", "9.8.7", "--dry"],
